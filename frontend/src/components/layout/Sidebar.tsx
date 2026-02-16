@@ -16,9 +16,9 @@ export function Sidebar() {
     const pathname = usePathname();
 
     return (
-        <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+        <aside className="w-64 bg-card border-r border-border">
             <div className="p-4">
-                <Link href="/dashboard" className="text-2xl font-bold text-primary-600">
+                <Link href="/dashboard" className="text-2xl font-bold text-primary">
                     SortMail
                 </Link>
             </div>
@@ -31,8 +31,8 @@ export function Sidebar() {
                         className={clsx(
                             "flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors",
                             pathname === item.href
-                                ? "bg-primary-50 text-primary-700 dark:bg-primary-900 dark:text-primary-200"
-                                : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                                ? "bg-accent text-accent-foreground"
+                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                         )}
                     >
                         <span>{item.icon}</span>
@@ -42,11 +42,11 @@ export function Sidebar() {
             </nav>
 
             <div className="absolute bottom-4 left-4 right-4">
-                <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                <div className="p-4 bg-muted/50 rounded-lg">
+                    <p className="text-xs text-muted-foreground">
                         Connected to Gmail
                     </p>
-                    <p className="text-sm font-medium truncate">user@example.com</p>
+                    <p className="text-sm font-medium truncate text-foreground">user@example.com</p>
                 </div>
             </div>
         </aside>
