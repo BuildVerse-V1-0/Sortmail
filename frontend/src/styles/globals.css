@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SortMail Global Styles */
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%; /* #09090B Zinc 950 */
+    --foreground: 0 0% 98%;     /* #FAFAFA Zinc 50 */
+    --card: 240 10% 10%;        /* #18181B Zinc 900 */
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;   /* #27272a Zinc 800 */
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+
+  body {
+    @apply bg-[#09090B] text-[#FAFAFA] font-sans antialiased overflow-hidden;
+    /* font-family is handled by Next.js font/google in layout.tsx */
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+@layer components {
+  .glass-panel {
+    background: rgba(24, 24, 27, 0.6); /* Zinc 900 with opacity */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  
+  .bento-card {
+    background-color: #18181B; /* Zinc 900 */
+    border: 1px solid #27272a; /* Zinc 800 */
+    border-radius: 1rem;
+  }
+
+  /* Retaining existing utility classes if needed, adapting to new theme */
+  .priority-badge {
+    @apply px-2 py-1 rounded-full text-xs font-medium;
+  }
+  
+  .priority-do-now {
+    @apply bg-red-900/50 text-red-200 border border-red-800;
+  }
+  
+  .priority-do-today {
+    @apply bg-orange-900/50 text-orange-200 border border-orange-800;
+  }
+  
+  .priority-can-wait {
+    @apply bg-green-900/50 text-green-200 border border-green-800;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground px-4 py-2 rounded-lg hover:bg-secondary/80 transition-colors;
+  }
+}

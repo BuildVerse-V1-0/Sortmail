@@ -1,0 +1,275 @@
+{
+    "scenarios": {
+        "1_contract_review": {
+            "name": "High Priority - Contract Review with Deadline",
+            "description": "VP from BigClient sends final contract, needs approval by Friday",
+            "request": {
+                "method": "GET",
+                "url": "/api/threads/thread_contract_001"
+            },
+            "expected_response": {
+                "thread_id": "thread_contract_001",
+                "subject": "RE: Contract Review - Final Terms for Q1 Partnership",
+                "participants": [
+                    "sarah.chen@bigclient.com",
+                    "you@company.com",
+                    "legal@company.com"
+                ],
+                "message_count": 3,
+                "has_attachments": true,
+                "intel": {
+                    "summary": "Sarah from BigClient sent the final contract with updated payment terms (NET 30), increased liability cap ($500K), and new data protection clause. She needs approval by Friday EOD (Jan 24) to proceed with signing.",
+                    "intent": "ACTION_REQUIRED",
+                    "urgency_score": 85,
+                    "main_ask": "Approve or request changes to the contract by Friday EOD",
+                    "extracted_deadlines": [
+                        {
+                            "deadline": "2026-01-24T17:00:00",
+                            "confidence": 0.95,
+                            "source_text": "by Friday EOD (Jan 24)"
+                        }
+                    ],
+                    "extracted_entities": [
+                        {
+                            "type": "person",
+                            "value": "Sarah Chen",
+                            "role": "VP of Partnerships"
+                        },
+                        {
+                            "type": "company",
+                            "value": "BigClient Inc."
+                        },
+                        {
+                            "type": "money",
+                            "value": "$500,000",
+                            "context": "liability cap"
+                        }
+                    ]
+                },
+                "attachments": [
+                    {
+                        "attachment_id": "att_001",
+                        "filename": "Contract_BigClient_Q1_2026_Final.pdf",
+                        "mime_type": "application/pdf",
+                        "size_bytes": 245000,
+                        "summary": "Partnership contract with updated terms: NET 30 payment, $500K liability cap, GDPR-compliant data protection clause.",
+                        "key_points": [
+                            "Payment terms: NET 30",
+                            "Liability cap: $500,000",
+                            "New Section 8.3: Data Protection"
+                        ]
+                    }
+                ]
+            }
+        },
+        "2_fyi_notes": {
+            "name": "Low Priority - FYI Standup Notes",
+            "description": "Weekly standup summary, no action needed",
+            "request": {
+                "method": "GET",
+                "url": "/api/threads/thread_fyi_002"
+            },
+            "expected_response": {
+                "thread_id": "thread_fyi_002",
+                "subject": "Team Standup Notes - January 17",
+                "participants": [
+                    "pm@company.com",
+                    "engineering-team@company.com"
+                ],
+                "message_count": 1,
+                "has_attachments": false,
+                "intel": {
+                    "summary": "Weekly standup notes: Auth and DB migrations completed. Dashboard at 70%, email sync at 50%. Blocked on Gemini API approval.",
+                    "intent": "FYI",
+                    "urgency_score": 20,
+                    "main_ask": null,
+                    "extracted_deadlines": [],
+                    "extracted_entities": []
+                }
+            }
+        },
+        "3_scheduling": {
+            "name": "Medium Priority - Meeting Request",
+            "description": "Marketing wants to schedule a sync call",
+            "request": {
+                "method": "GET",
+                "url": "/api/threads/thread_meeting_003"
+            },
+            "expected_response": {
+                "thread_id": "thread_meeting_003",
+                "subject": "Sync call to discuss Q2 roadmap?",
+                "participants": [
+                    "marketing-lead@company.com",
+                    "you@company.com"
+                ],
+                "message_count": 1,
+                "has_attachments": false,
+                "intel": {
+                    "summary": "Marketing lead wants to schedule a 30-minute sync about Q2 roadmap and new features. Proposed time: Tuesday at 2pm.",
+                    "intent": "SCHEDULING",
+                    "urgency_score": 50,
+                    "main_ask": "Confirm or propose alternative time for sync call",
+                    "extracted_deadlines": [
+                        {
+                            "deadline": "2026-01-21T14:00:00",
+                            "confidence": 0.8,
+                            "source_text": "Tuesday at 2pm"
+                        }
+                    ]
+                },
+                "calendar_suggestion": {
+                    "title": "Sync: Q2 Roadmap Discussion",
+                    "suggested_time": "2026-01-21T14:00:00",
+                    "duration_minutes": 30
+                }
+            }
+        }
+    },
+    "api_endpoints": {
+        "auth": {
+            "GET /api/auth/google": {
+                "description": "Get Google OAuth authorization URL",
+                "response": {
+                    "auth_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=xxx&redirect_uri=xxx&scope=xxx"
+                }
+            },
+            "GET /api/auth/me": {
+                "description": "Get current user info (requires JWT)",
+                "response": {
+                    "id": "user_001",
+                    "email": "you@company.com",
+                    "name": "Your Name",
+                    "picture_url": "https://...",
+                    "provider": "google"
+                }
+            }
+        },
+        "threads": {
+            "GET /api/threads": {
+                "description": "List all threads for current user",
+                "response": {
+                    "threads": [
+                        {
+                            "thread_id": "thread_001",
+                            "subject": "...",
+                            "summary": "...",
+                            "intent": "ACTION_REQUIRED",
+                            "urgency_score": 85,
+                            "last_updated": "2026-01-18T14:30:00"
+                        }
+                    ],
+                    "total": 25,
+                    "page": 1,
+                    "per_page": 20
+                }
+            },
+            "GET /api/threads/{id}": {
+                "description": "Get thread detail with intel",
+                "response": "See scenarios above"
+            },
+            "POST /api/threads/{id}/refresh": {
+                "description": "Re-analyze thread intelligence",
+                "response": {
+                    "status": "processing",
+                    "estimated_seconds": 5
+                }
+            }
+        },
+        "tasks": {
+            "GET /api/tasks": {
+                "description": "List all tasks for current user",
+                "query_params": {
+                    "priority": "DO_NOW|DO_TODAY|CAN_WAIT",
+                    "status": "pending|completed|dismissed"
+                },
+                "response": {
+                    "tasks": [
+                        {
+                            "task_id": "task_001",
+                            "thread_id": "thread_001",
+                            "title": "Reply to Sarah - Contract Review",
+                            "priority": "DO_NOW",
+                            "priority_score": 85,
+                            "priority_explanation": "Urgent deadline + VIP sender",
+                            "effort": "deep_work",
+                            "deadline": "2026-01-24T17:00:00",
+                            "status": "pending"
+                        }
+                    ]
+                }
+            },
+            "PATCH /api/tasks/{id}": {
+                "description": "Update task status",
+                "request": {
+                    "status": "completed"
+                },
+                "response": {
+                    "task_id": "task_001",
+                    "status": "completed",
+                    "updated_at": "2026-01-18T15:00:00"
+                }
+            }
+        },
+        "drafts": {
+            "POST /api/drafts": {
+                "description": "Generate a draft reply",
+                "request": {
+                    "thread_id": "thread_001",
+                    "tone": "formal"
+                },
+                "response": {
+                    "draft_id": "draft_001",
+                    "content": "Hi Sarah,\n\nThank you for sending...",
+                    "placeholders": [
+                        {
+                            "text": "[decision here]",
+                            "type": "decision"
+                        }
+                    ],
+                    "references_attachments": true,
+                    "references_deadlines": true
+                }
+            },
+            "POST /api/drafts/{id}/regenerate": {
+                "description": "Regenerate draft with different tone",
+                "request": {
+                    "tone": "brief"
+                }
+            }
+        },
+        "reminders": {
+            "GET /api/reminders": {
+                "description": "List waiting-for threads",
+                "response": {
+                    "waiting_for": [
+                        {
+                            "waiting_id": "waiting_001",
+                            "thread_id": "thread_004",
+                            "subject": "RE: Proposal for new partnership",
+                            "recipient": "john@client.com",
+                            "days_waiting": 5,
+                            "reminded": false
+                        }
+                    ]
+                }
+            }
+        },
+        "sync": {
+            "POST /api/emails/sync": {
+                "description": "Trigger email sync from provider",
+                "response": {
+                    "status": "syncing",
+                    "job_id": "sync_001"
+                }
+            },
+            "GET /api/emails/sync/status": {
+                "description": "Check sync status",
+                "response": {
+                    "status": "completed",
+                    "threads_synced": 15,
+                    "last_sync": "2026-01-18T15:00:00"
+                }
+            }
+        }
+    }
+}
