@@ -17,32 +17,53 @@ class GmailClient:
     
     async def initialize(self):
         """Initialize the Gmail API service."""
-        # TODO: Implement
-        # from googleapiclient.discovery import build
-        # from google.oauth2.credentials import Credentials
-        # creds = Credentials(token=self.access_token)
-        # self._service = build('gmail', 'v1', credentials=creds)
-        pass
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+        
+        creds = Credentials(token=self.access_token)
+        # cache_discovery=False recommended to avoid file cache issues in some envs
+        self._service = build('gmail', 'v1', credentials=creds, cache_discovery=False)
+    
+    async def get_profile(self) -> dict:
+        """Get user profile."""
+        if not self._service:
+            await self.initialize()
+            
+        return self._service.users().getProfile(userId='me').execute()
     
     async def list_threads(
         self,
         max_results: int = 50,
         page_token: Optional[str] = None,
+        include_spam_trash: bool = False,
+        query: Optional[str] = None
     ) -> dict:
         """List email threads."""
-        # TODO: Implement
-        # results = self._service.users().threads().list(
-        #     userId='me',
-        #     maxResults=max_results,
-        #     pageToken=page_token,
-        # ).execute()
-        # return results
-        raise NotImplementedError("Implement Gmail thread listing")
+        if not self._service:
+            await self.initialize()
+            
+        kwargs = {
+            'userId': 'me',
+            'maxResults': max_results,
+            'includeSpamTrash': include_spam_trash,
+        }
+        if page_token:
+            kwargs['pageToken'] = page_token
+        if query:
+            kwargs['q'] = query
+            
+        return self._service.users().threads().list(**kwargs).execute()
     
     async def get_thread(self, thread_id: str) -> dict:
         """Get a single thread with all messages."""
-        # TODO: Implement
-        raise NotImplementedError("Implement Gmail thread fetch")
+        if not self._service:
+            await self.initialize()
+            
+        return self._service.users().threads().get(
+            userId='me',
+            id=thread_id,
+            format='full'
+        ).execute()
     
     async def get_attachment(
         self,
@@ -50,8 +71,18 @@ class GmailClient:
         attachment_id: str,
     ) -> bytes:
         """Download an attachment."""
-        # TODO: Implement
-        raise NotImplementedError("Implement Gmail attachment download")
+        if not self._service:
+            await self.initialize()
+            
+        attachment = self._service.users().messages().attachments().get(
+            userId='me',
+            messageId=message_id,
+            id=attachment_id
+        ).execute()
+        
+        import base64
+        file_data = base64.urlsafe_b64decode(attachment['data'].encode('UTF-8'))
+        return file_data
     
     async def create_draft(
         self,
@@ -61,5 +92,30 @@ class GmailClient:
         thread_id: Optional[str] = None,
     ) -> str:
         """Create a draft email."""
-        # TODO: Implement
-        raise NotImplementedError("Implement Gmail draft creation")
+        if not self._service:
+            await self.initialize()
+            
+        from email.mime.text import MIMEText
+        import base64
+        
+        message = MIMEText(body)
+        message['to'] = to
+        message['subject'] = subject
+        
+        if thread_id:
+            # If replying to a thread, set References/In-Reply-To if we had the last message ID
+            # But here we assume basic threading by subject/threadId for the draft container
+            pass
+
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        body = {'message': {'raw': raw_message}}
+        
+        if thread_id:
+            body['message']['threadId'] = thread_id
+            
+        draft = self._service.users().drafts().create(
+            userId='me', 
+            body=body
+        ).execute()
+        
+        return draft['id']
