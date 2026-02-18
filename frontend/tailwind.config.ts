@@ -17,43 +17,71 @@ const config: Config = {
 		},
 		extend: {
 			colors: {
-				ink: {
-					DEFAULT: 'var(--ink)',
-					mid: 'var(--ink-mid)',
-					light: 'var(--ink-light)'
-				},
+				// Core palette from spec
+				ink: 'var(--ink)',
+				paper: 'var(--paper)',
+				accent: 'var(--accent)',
+				accent2: 'var(--accent2)',
+				muted: 'var(--muted)',
+				border: 'var(--border)',
+
+				// Surface colors (sidebar, cards, etc.)
 				surface: {
 					DEFAULT: 'var(--surface)',
 					2: 'var(--surface-2)',
-					3: 'var(--surface-3)'
+					3: 'var(--surface-3)',
+					card: 'var(--surface-card)',
+					elevated: 'var(--surface-elevated)'
 				},
-				accent: {
-					DEFAULT: 'var(--red)',
-					soft: 'var(--red-soft)'
-				},
-				blue: {
-					DEFAULT: 'var(--blue)',
-					soft: 'var(--blue-soft)'
-				},
-				green: {
-					DEFAULT: 'var(--green)',
-					soft: 'var(--green-soft)'
-				},
-				amber: {
-					DEFAULT: 'var(--amber)',
-					soft: 'var(--amber-soft)'
-				},
-				violet: {
-					DEFAULT: 'var(--violet)',
-					soft: 'var(--violet-soft)'
-				},
-				muted: {
-					DEFAULT: 'var(--muted)',
-					2: 'var(--muted-2)',
-					foreground: 'var(--muted-foreground)'
-				},
-				border: 'var(--border)',
-				border2: 'var(--border-2)',
+
+				// Paper variants
+				'paper-mid': 'var(--paper-mid)',
+				'paper-deep': 'var(--paper-deep)',
+
+				// Ink variants
+				'ink-mid': 'var(--ink-mid)',
+				'ink-light': 'var(--ink-light)',
+
+				// Semantic/action colors
+				success: 'var(--success)',
+				warning: 'var(--warning)',
+				danger: 'var(--danger)',
+				ai: 'var(--ai-purple)',
+				'ai-purple': 'var(--ai-purple)',
+				'ai-purple-soft': 'var(--ai-purple-soft)',
+
+				// Accent variants
+				'accent-hover': 'var(--accent-hover)',
+				'accent-soft': 'var(--accent-soft)',
+
+				// Mono/code colors
+				'mono-bg': 'var(--mono-bg)',
+				'mono-text': 'var(--mono-text)',
+				'mono-green': 'var(--mono-green)',
+				'mono-blue': 'var(--mono-blue)',
+				'mono-orange': 'var(--mono-orange)',
+				'mono-yellow': 'var(--mono-yellow)',
+				'mono-pink': 'var(--mono-pink)',
+
+				// Wireframe colors
+				'wire-bg': 'var(--wire-bg)',
+				'wire-border': 'var(--wire-border)',
+				'wire-fill': 'var(--wire-fill)',
+				'wire-accent': 'var(--wire-accent)',
+
+				// Priority/tag colors
+				'tag-urgent': 'var(--tag-urgent)',
+				'tag-high': 'var(--tag-high)',
+				'tag-medium': 'var(--tag-medium)',
+				'tag-low': 'var(--tag-low)',
+
+				// Semantic colors from spec
+				'color-ai': 'var(--color-ai)',
+				'color-success': 'var(--color-success)',
+				'color-warning': 'var(--color-warning)',
+				'color-danger': 'var(--color-danger)',
+
+				// Shadcn mappings
 				background: 'var(--background)',
 				foreground: 'var(--foreground)',
 				card: {
@@ -76,6 +104,7 @@ const config: Config = {
 					DEFAULT: 'var(--destructive)',
 					foreground: 'var(--destructive-foreground)'
 				},
+				'muted-foreground': 'var(--muted-foreground)',
 				input: 'var(--input)',
 				ring: 'var(--ring)',
 				chart: {
@@ -92,31 +121,31 @@ const config: Config = {
 				mono: ['var(--ff-mono)']
 			},
 			fontSize: {
-				xs: 'var(--fs-xs)',
-				sm: 'var(--fs-sm)',
-				base: 'var(--fs-base)',
-				md: 'var(--fs-md)',
-				lg: 'var(--fs-lg)',
-				xl: 'var(--fs-xl)',
-				'2xl': 'var(--fs-2xl)'
+				xs: '12px',
+				sm: '16px',
+				base: '18px',
+				md: '22px',
+				lg: '24px',
+				xl: '30px',
+				'2xl': '36px'
 			},
 			spacing: {
 				'sb': 'var(--sidebar-w)',
-				'sb-col': 'var(--sidebar-col)',
+				'sb-col': 'var(--sidebar-collapsed)',
 				'tb': 'var(--topbar-h)',
 				'panel': 'var(--panel-w)'
 			},
 			borderRadius: {
-				sm: 'calc(var(--radius) - 4px)',
-				md: 'calc(var(--radius) - 2px)',
-				lg: 'var(--radius)',
-				xl: '24px'
+				sm: 'var(--radius-sm)',
+				md: 'var(--radius-md)',
+				lg: 'var(--radius-lg)',
+				full: 'var(--radius-full)'
 			},
 			boxShadow: {
-				sm: '0 1px 3px rgba(26, 26, 25, 0.06)',
-				md: '0 4px 12px rgba(26, 26, 25, 0.08)',
-				lg: '0 8px 32px rgba(26, 26, 25, 0.12)',
-				xl: '0 16px 48px rgba(26, 26, 25, 0.16)'
+				sm: '0 1px 3px rgba(10, 10, 15, 0.06)',
+				md: '0 4px 12px rgba(10, 10, 15, 0.08)',
+				lg: '0 8px 32px rgba(10, 10, 15, 0.12)',
+				xl: '0 16px 48px rgba(10, 10, 15, 0.16)'
 			},
 			transitionDuration: {
 				instant: '80ms',

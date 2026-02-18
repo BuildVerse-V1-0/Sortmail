@@ -1,24 +1,23 @@
 import type { Metadata } from "next";
-import { DM_Serif_Display, Outfit, IBM_Plex_Mono } from "next/font/google";
+import { Fraunces, Syne, JetBrains_Mono } from "next/font/google";
 import "@/styles/globals.css";
+import { Providers } from "@/app/providers";
 
-const dmSerif = DM_Serif_Display({
-    weight: "400",
+const fraunces = Fraunces({
     subsets: ["latin"],
-    variable: "--font-display",
+    variable: "--font-fraunces",
     display: "swap",
 });
 
-const outfit = Outfit({
+const syne = Syne({
     subsets: ["latin"],
-    variable: "--font-body",
+    variable: "--font-syne",
     display: "swap",
 });
 
-const ibmPlexMono = IBM_Plex_Mono({
-    weight: ["400", "500", "600"],
+const jetbrains = JetBrains_Mono({
     subsets: ["latin"],
-    variable: "--font-mono",
+    variable: "--font-jetbrains",
     display: "swap",
 });
 
@@ -37,9 +36,13 @@ export default function RootLayout({
     return (
         <html
             lang="en"
-            className={`${dmSerif.variable} ${outfit.variable} ${ibmPlexMono.variable}`}
+            className={`${fraunces.variable} ${syne.variable} ${jetbrains.variable}`}
         >
-            <body className="font-body antialiased">{children}</body>
+            <body className="font-body antialiased bg-paper text-ink">
+                <Providers>
+                    {children}
+                </Providers>
+            </body>
         </html>
     );
 }

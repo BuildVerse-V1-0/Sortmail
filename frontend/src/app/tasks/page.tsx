@@ -5,7 +5,7 @@ import AppShell from '@/components/layout/AppShell';
 import { TaskFilters } from '@/components/tasks/TaskFilters';
 import { TaskKanban } from '@/components/tasks/TaskKanban';
 import { TaskList } from '@/components/tasks/TaskList';
-import { mockTasks } from '@/data/mockData';
+import { useTasks } from '@/hooks/useTasks';
 import { Button } from '@/components/ui/button';
 import { LayoutGrid, List as ListIcon, Plus } from 'lucide-react';
 import { TaskDTOv1 } from '@/types/dashboard';
@@ -16,15 +16,18 @@ export default function TasksPage() {
     const [priorityFilter, setPriorityFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
 
+    const { data: tasks, isLoading, error } = useTasks();
+
     const filteredTasks = useMemo(() => {
-        return mockTasks.filter((task: TaskDTOv1) => {
+        if (!tasks) return [];
+        return tasks.filter((task: TaskDTOv1) => {
             const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (task.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
             const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
             const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
             return matchesSearch && matchesPriority && matchesStatus;
         });
-    }, [searchQuery, priorityFilter, statusFilter]);
+    }, [searchQuery, priorityFilter, statusFilter, tasks]);
 
     const handleClearFilters = () => {
         setSearchQuery('');
@@ -36,6 +39,33 @@ export default function TasksPage() {
         console.log('Task clicked:', taskId);
         // TODO: Open task detail modal
     };
+
+    if (isLoading) {
+        return (
+            <AppShell title="Tasks">
+                <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+                    <div className="p-6">
+                        <div className="h-12 w-64 bg-paper-mid animate-pulse rounded-lg mb-6" />
+                        <div className="flex gap-4">
+                            {[1, 2, 3].map(i => (
+                                <div key={i} className="flex-1 h-96 bg-paper-mid animate-pulse rounded-xl" />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </AppShell>
+        );
+    }
+
+    if (error) {
+        return (
+            <AppShell title="Tasks">
+                <div className="p-8 text-center text-danger">
+                    Failed to load tasks.
+                </div>
+            </AppShell>
+        );
+    }
 
     return (
         <AppShell title="Tasks">

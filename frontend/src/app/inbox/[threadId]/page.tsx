@@ -1,14 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import AppShell from '@/components/layout/AppShell';
-import { mockThreads, mockThreadIntel, mockTasks, mockDraft, getSenderInfo } from '@/data/mockData';
+import { getSenderInfo } from '@/data/mockData';
 import type { EmailMessage, EmailThreadV1, ThreadIntelV1, TaskDTOv1, DraftDTOv1, AttachmentRef, PriorityLevel } from '@/types/dashboard';
 import {
     ArrowLeft, Sparkles, AlertTriangle, Clock, FileText,
@@ -17,17 +10,44 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import AppShell from '@/components/layout/AppShell';
+import { useThreadDetail } from '@/hooks/useThreadDetail';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ThreadDetailPage() {
     const params = useParams();
     const threadId = params?.threadId as string;
 
-    const thread = mockThreads.find((t: EmailThreadV1) => t.thread_id === threadId);
-    const intel = mockThreadIntel[threadId] ?? null;
-    const tasks = mockTasks.filter((t: TaskDTOv1) => t.thread_id === threadId);
-    const draft = threadId === mockDraft.thread_id ? mockDraft : null;
+    const { data, isLoading, error } = useThreadDetail(threadId);
 
-    if (!thread) {
+    if (isLoading) {
+        return (
+            <AppShell title="Loading Thread...">
+                <div className="max-w-6xl mx-auto grid lg:grid-cols-3 gap-6 p-6">
+                    <div className="lg:col-span-2 space-y-4">
+                        <div className="h-12 w-3/4 bg-paper-mid animate-pulse rounded-lg" />
+                        <div className="space-y-4">
+                            {[1, 2, 3].map(i => (
+                                <div key={i} className="h-48 bg-paper-mid animate-pulse rounded-xl" />
+                            ))}
+                        </div>
+                    </div>
+                    <div className="space-y-4">
+                        <div className="h-64 bg-paper-mid animate-pulse rounded-xl" />
+                        <div className="h-32 bg-paper-mid animate-pulse rounded-xl" />
+                    </div>
+                </div>
+            </AppShell>
+        );
+    }
+
+    if (error || !data || !data.thread) {
         return (
             <AppShell title="Thread Not Found">
                 <div className="flex flex-col items-center justify-center h-96 text-muted-foreground">
@@ -42,6 +62,8 @@ export default function ThreadDetailPage() {
             </AppShell>
         );
     }
+
+    const { thread, intel, tasks, draft } = data;
 
     return (
         <AppShell title={thread.subject} subtitle={`${thread.messages.length} messages`}>

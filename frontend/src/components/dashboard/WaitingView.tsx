@@ -46,8 +46,8 @@ const WaitingView: React.FC = () => {
 
                         <div className="flex items-center gap-6">
                             <div className={`px-3 py-1 rounded-full text-xs font-medium border ${item.daysPending > 4
-                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                    : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                                 }`}>
                                 {item.daysPending} days pending
                             </div>
@@ -74,7 +74,7 @@ const WaitingView: React.FC = () => {
 
                 {items.length === 0 && (
                     <div className="text-center py-20 text-zinc-500">
-                        No pending threads. You're all caught up!
+                        No pending threads. You&apos;re all caught up!
                     </div>
                 )}
             </div>

@@ -7,7 +7,8 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import AppShell from '@/components/layout/AppShell';
-import { mockDashboard, mockThreads, getSenderInfo } from '@/data/mockData';
+import { mockThreads, getSenderInfo } from '@/data/mockData';
+import { useDashboard } from '@/hooks/useDashboard';
 import type { TaskDTOv1, ThreadListItem, EmailThreadV1, PriorityLevel } from '@/types/dashboard';
 import {
     Sparkles, Mail, AlertTriangle, CheckSquare, Clock,
@@ -22,7 +23,34 @@ const priorityConfig = {
 };
 
 export default function DashboardPage() {
-    const { briefing, stats, recent_threads, priority_tasks } = mockDashboard;
+    const { data, isLoading, error } = useDashboard();
+
+    if (isLoading) {
+        return (
+            <AppShell title="Dashboard" subtitle="Your morning briefing">
+                <div className="p-6 max-w-7xl mx-auto space-y-6">
+                    <div className="h-48 rounded-xl bg-paper-mid animate-pulse" />
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="h-32 rounded-xl bg-paper-mid animate-pulse" />
+                        ))}
+                    </div>
+                </div>
+            </AppShell>
+        );
+    }
+
+    if (error || !data) {
+        return (
+            <AppShell title="Dashboard">
+                <div className="p-6 text-center text-danger">
+                    Failed to load dashboard data.
+                </div>
+            </AppShell>
+        );
+    }
+
+    const { briefing, stats, recent_threads, priority_tasks } = data;
 
     return (
         <AppShell title="Dashboard" subtitle="Your morning briefing">

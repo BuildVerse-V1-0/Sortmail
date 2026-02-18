@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar as CalendarIcon, Clock, MapPin, Check, X, ExternalLink, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
+import Image from 'next/image';
 
 export default function CalendarPage() {
     const [date, setDate] = useState<Date | undefined>(new Date());
@@ -74,7 +75,7 @@ export default function CalendarPage() {
                                         </div>
 
                                         <div className="bg-paper-mid rounded-lg p-3 text-xs text-muted-foreground mb-4">
-                                            Extracted from: <span className="italic">"{suggestion.extracted_from}"</span>
+                                            Extracted from: <span className="italic">&quot;{suggestion.extracted_from}&quot;</span>
                                         </div>
 
                                         <div className="flex gap-3">
@@ -121,12 +122,26 @@ export default function CalendarPage() {
                         <div className="space-y-4">
                             <h3 className="font-medium text-ink">External Calendars</h3>
                             <Button variant="outline" className="w-full justify-start gap-2 h-12">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg" className="h-5 w-5 py-0.5" alt="Google" />
+                                <Image
+                                    src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg"
+                                    className="h-5 w-5 py-0.5"
+                                    alt="Google"
+                                    width={20}
+                                    height={20}
+                                    unoptimized
+                                />
                                 Open Google Calendar
                                 <ArrowRight className="h-4 w-4 ml-auto text-muted-foreground" />
                             </Button>
                             <Button variant="outline" className="w-full justify-start gap-2 h-12">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/d/df/Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg" className="h-5 w-5 py-0.5" alt="Outlook" />
+                                <Image
+                                    src="https://upload.wikimedia.org/wikipedia/commons/d/df/Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg"
+                                    className="h-5 w-5 py-0.5"
+                                    alt="Outlook"
+                                    width={20}
+                                    height={20}
+                                    unoptimized
+                                />
                                 Open Outlook Calendar
                                 <ArrowRight className="h-4 w-4 ml-auto text-muted-foreground" />
                             </Button>

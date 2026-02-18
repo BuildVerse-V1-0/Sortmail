@@ -2,17 +2,43 @@
 
 import React from 'react';
 import AppShell from '@/components/layout/AppShell';
-import { mockWaitingFor, getSenderInfo } from '@/data/mockData';
 import { WaitingForDTOv1 } from '@/types/dashboard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Clock, Bell, CheckCircle2, MoreHorizontal, CalendarClock } from 'lucide-react';
+import { Clock, Bell, CheckCircle2, MoreHorizontal, CalendarClock, AlertCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useWaitingFor } from '@/hooks/useWaitingFor';
 
-function FollowUpGroup({ title, items, icon: Icon, colorClass }: { title: string; items: WaitingForDTOv1[]; icon: any; colorClass: string }) {
+function FollowUpGroup({ title, items, variant }: { title: string; items: WaitingForDTOv1[]; variant: 'destructive' | 'warning' | 'default' }) {
     if (items.length === 0) return null;
+
+    let Icon;
+    let colorClass;
+    let badgeClass;
+
+    switch (variant) {
+        case 'destructive':
+            Icon = AlertCircle;
+            colorClass = 'text-destructive';
+            badgeClass = 'bg-destructive/10 text-destructive';
+            break;
+        case 'warning':
+            Icon = Clock;
+            colorClass = 'text-warning';
+            badgeClass = 'bg-warning/10 text-warning';
+            break;
+        case 'default':
+            Icon = CheckCircle2;
+            colorClass = 'text-ink-light'; // Or a neutral color
+            badgeClass = 'bg-primary/10 text-primary'; // Or a neutral badge
+            break;
+        default:
+            Icon = Clock;
+            colorClass = 'text-muted-foreground';
+            badgeClass = 'bg-muted/10 text-muted-foreground';
+    }
 
     return (
         <div className="space-y-4">
@@ -67,7 +93,7 @@ function FollowUpGroup({ title, items, icon: Icon, colorClass }: { title: string
                                 </div>
 
                                 <div className="text-right shrink-0">
-                                    <Badge variant="outline" className={`${colorClass.replace('text-', 'bg-').replace('700', '100')} ${colorClass.replace('text-', 'text-').replace('700', '800')} border-transparent`}>
+                                    <Badge variant="outline" className={`border-transparent ${colorClass === 'text-destructive' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>
                                         {item.days_waiting} days
                                     </Badge>
                                 </div>
@@ -80,12 +106,38 @@ function FollowUpGroup({ title, items, icon: Icon, colorClass }: { title: string
     );
 }
 
-export default function FollowUpsPage() {
-    // Group mock data
-    const overdue = mockWaitingFor.filter(i => i.days_waiting > 3);
-    const dueSoon = mockWaitingFor.filter(i => i.days_waiting <= 3);
-    // Mock snoozed for UI demo since data doesn't have it
-    const snoozed = [];
+export default function FollowupsPage() {
+    const { data: waitingItems, isLoading, error } = useWaitingFor();
+
+    if (isLoading) {
+        return (
+            <AppShell title="Follow-up Tracker">
+                <div className="p-8 space-y-6">
+                    <div className="h-8 w-48 bg-paper-mid animate-pulse rounded-md" />
+                    <div className="space-y-4">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="h-32 bg-paper-mid animate-pulse rounded-xl" />
+                        ))}
+                    </div>
+                </div>
+            </AppShell>
+        );
+    }
+
+    if (error || !waitingItems) {
+        return (
+            <AppShell title="Follow-up Tracker">
+                <div className="p-8 text-center text-danger">
+                    Failed to load follow-ups.
+                </div>
+            </AppShell>
+        );
+    }
+
+    // Group items by status
+    const overdue = waitingItems.filter(i => i.days_waiting > 3);
+    const dueSoon = waitingItems.filter(i => i.days_waiting <= 3);
+    const snoozed: WaitingForDTOv1[] = []; // Placeholder until API supports snoozed
 
     return (
         <AppShell title="Follow-up Tracker">
@@ -99,14 +151,12 @@ export default function FollowUpsPage() {
                     <FollowUpGroup
                         title="Overdue"
                         items={overdue}
-                        icon={Clock}
-                        colorClass="text-red-700"
+                        variant="destructive"
                     />
                     <FollowUpGroup
                         title="Due Soon"
                         items={dueSoon}
-                        icon={Clock}
-                        colorClass="text-yellow-700"
+                        variant="warning"
                     />
 
                     {/* Empty State for Snoozed */}
@@ -114,7 +164,7 @@ export default function FollowUpsPage() {
                         <h3 className="font-display text-lg flex items-center gap-2 text-muted-foreground">
                             <CalendarClock className="h-5 w-5" />
                             Snoozed
-                            <span className="text-sm font-sans font-normal ml-2">(0)</span>
+                            <span className="text-sm font-sans font-normal ml-2">({snoozed.length})</span>
                         </h3>
                         <div className="border border-dashed border-border-light rounded-xl p-8 text-center bg-paper-mid/30">
                             <p className="text-sm text-muted-foreground">No snoozed items.</p>

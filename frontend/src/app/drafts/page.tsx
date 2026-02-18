@@ -4,79 +4,65 @@ import React, { useState, useEffect } from 'react';
 import AppShell from '@/components/layout/AppShell';
 import { DraftControls } from '@/components/drafts/DraftControls';
 import { DraftEditor } from '@/components/drafts/DraftEditor';
-import { mockThreads, mockDraft } from '@/data/mockData';
+import { useDrafts } from '@/hooks/useDrafts';
+import { mockThreads } from '@/data/mockData';
 import { EmailThreadV1 } from '@/types/dashboard';
 
 export default function DraftsPage() {
     const [selectedThreadId, setSelectedThreadId] = useState<string>('');
     const [tone, setTone] = useState<string>('normal');
-    const [instructions, setInstructions] = useState<string>('');
-    const [content, setContent] = useState<string>('');
-    const [isGenerating, setIsGenerating] = useState<boolean>(false);
+    const [customInstructions, setCustomInstructions] = useState('');
+    const [generatedContent, setGeneratedContent] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    // Fetch draft if a thread is selected
+    const { data: activeDraft, isLoading } = useDrafts(selectedThreadId);
+
+    // Effect to populate content when draft is loaded
+    useEffect(() => {
+        if (activeDraft) {
+            setGeneratedContent(activeDraft.content);
+            setTone(activeDraft.tone);
+        } else {
+            setGeneratedContent('');
+        }
+    }, [activeDraft]);
+
+    const handleGenerate = async () => {
+        if (!selectedThreadId) return;
+        setIsGenerating(true);
+        // Simulate API generation
+        setTimeout(() => {
+            const thread = mockThreads.find(t => t.thread_id === selectedThreadId);
+            const newContent = `Hi ${thread?.participants[0] || 'there'},\n\nThis is a generated draft based on your instructions: "${customInstructions}"\n\nBest,\n[Your Name]`;
+            setGeneratedContent(newContent);
+            setIsGenerating(false);
+        }, 1500);
+    };
 
     const selectedThread = mockThreads.find((t: EmailThreadV1) => t.thread_id === selectedThreadId) || null;
 
-    // Simulate streaming generation
-    const handleGenerate = () => {
-        setIsGenerating(true);
-        setContent('');
-
-        // Mock generation content based on selected thread
-        let fullText = mockDraft.content;
-        if (tone === 'brief') fullText = "Hi,\n\nApproved. Thanks.\n\nBest,\nUser";
-        if (tone === 'formal') fullText = "Dear Sarah,\n\nI confirm receipt of the contract and approval of the terms within. We shall proceed accordingly.\n\nSincerely,\nUser";
-
-        let currentIndex = 0;
-        const interval = setInterval(() => {
-            if (currentIndex < fullText.length) {
-                setContent(prev => prev + fullText[currentIndex]);
-                currentIndex++;
-            } else {
-                clearInterval(interval);
-                setIsGenerating(false);
-            }
-        }, 15); // Adjust speed of typing
-    };
-
-    // Reset when thread changes, or maybe keep it? Let's clear for now
-    useEffect(() => {
-        if (selectedThreadId) {
-            setContent('');
-        }
-    }, [selectedThreadId]);
-
     return (
         <AppShell title="Draft Copilot">
-            <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+            <div className="flex flex-col lg:flex-row h-full">
                 <DraftControls
                     selectedThreadId={selectedThreadId}
                     onThreadChange={setSelectedThreadId}
                     tone={tone}
                     onToneChange={setTone}
-                    instructions={instructions}
-                    onInstructionsChange={setInstructions}
-                    isGenerating={isGenerating}
+                    instructions={customInstructions}
+                    onInstructionsChange={setCustomInstructions}
                     onGenerate={handleGenerate}
+                    isGenerating={isGenerating}
                 />
-
-                <div className="flex-1 overflow-hidden bg-paper">
-                    {selectedThreadId ? (
-                        <DraftEditor
-                            content={content}
-                            onUpdateContent={setContent}
-                            originalThread={selectedThread}
-                            isGenerating={isGenerating}
-                            onRegenerate={handleGenerate}
-                        />
-                    ) : (
-                        <div className="h-full flex items-center justify-center text-muted-foreground bg-paper-mid/30">
-                            <div className="text-center">
-                                <p className="text-lg font-medium text-ink">Ready to write?</p>
-                                <p className="text-sm">Select an email thread from the left to get started.</p>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <DraftEditor
+                    content={generatedContent}
+                    onUpdateContent={setGeneratedContent}
+                    originalThread={selectedThread}
+                    isGenerating={isGenerating}
+                    onRegenerate={handleGenerate}
+                    isLoading={isLoading}
+                />
             </div>
         </AppShell>
     );

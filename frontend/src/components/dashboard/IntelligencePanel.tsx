@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { LegacyEmail, LegacyTask } from '@/types/dashboard';
 // gsap v3.14 types don't expose .fromTo/.to on default export — cast for IDE compat
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line
 import _gsap from 'gsap';
 const gsap = _gsap as any;
 import {

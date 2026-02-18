@@ -22,6 +22,8 @@ export type TaskType = 'reply' | 'review' | 'schedule' | 'followup' | 'other';
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'dismissed';
 export type ToneType = 'brief' | 'normal' | 'formal';
 
+export type FilterTab = 'all' | 'urgent' | 'action_required' | 'fyi';
+
 // ─── Ingestion Contracts ─────────────────────────────────────
 
 /** Mirrors backend: contracts/ingestion.py → AttachmentRef */
@@ -185,6 +187,8 @@ export interface ThreadListItem {
     urgency_score: number;
     last_updated: string;
     has_attachments: boolean;
+    days_waiting: number;
+    is_read: boolean;
 }
 
 /** Dashboard aggregate (to be added as backend endpoint) */

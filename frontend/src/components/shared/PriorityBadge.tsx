@@ -1,22 +1,30 @@
 import React from "react";
-import type { Priority } from "@/types/dashboard";
+import type { Priority, PriorityLevel } from "@/types/dashboard";
 
-const PRIORITY_CLASSES: Record<Priority, string> = {
+const PRIORITY_CLASSES: Record<Priority | PriorityLevel, string> = {
     urgent: "priority-urgent",
     high: "priority-high",
     medium: "priority-medium",
     low: "priority-low",
+    // New mappings
+    do_now: "priority-urgent",
+    do_today: "priority-high",
+    can_wait: "priority-low",
 };
 
-const PRIORITY_LABELS: Record<Priority, string> = {
+const PRIORITY_LABELS: Record<Priority | PriorityLevel, string> = {
     urgent: "Urgent",
     high: "High",
     medium: "Medium",
     low: "Low",
+    // New labels
+    do_now: "Do Now",
+    do_today: "Do Today",
+    can_wait: "Can Wait",
 };
 
 interface PriorityBadgeProps {
-    priority: Priority;
+    priority: Priority | PriorityLevel;
     className?: string;
 }
 

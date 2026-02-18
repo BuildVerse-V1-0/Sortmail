@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,33 +10,32 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import AppShell from '@/components/layout/AppShell';
-import { mockThreadListItems, mockThreads, getSenderInfo } from '@/data/mockData';
+import { useThreads } from '@/hooks/useThreads';
 import {
-    Search, FileText, AlertTriangle, ChevronRight,
-    SlidersHorizontal, Inbox, Clock
+    Search,
+    SlidersHorizontal,
+    Inbox,
+    AlertTriangle,
+    Clock,
+    FileText,
+    ChevronRight
 } from 'lucide-react';
-import Link from 'next/link';
-import type { ThreadListItem, EmailThreadV1 } from '@/types/dashboard';
-
-type FilterTab = 'all' | 'urgent' | 'action_required' | 'fyi';
+import { FilterTab, ThreadListItem, EmailThreadV1 } from '@/types/dashboard';
+import { mockThreads } from '@/data/mockData';
+import { getSenderInfo } from '@/lib/utils';
 
 export default function InboxPage() {
     const [search, setSearch] = useState('');
     const [activeTab, setActiveTab] = useState<FilterTab>('all');
 
+    // Pass activeTab to hook for filtering (even if we do some client-side refining for search)
+    const { data: threads, isLoading, error } = useThreads(activeTab === 'all' ? undefined : activeTab);
+
     const filtered = useMemo(() => {
-        let items = mockThreadListItems;
+        if (!threads) return [];
+        let items = threads;
 
-        // Tab filter
-        if (activeTab === 'urgent') {
-            items = items.filter((t: ThreadListItem) => t.urgency_score >= 70);
-        } else if (activeTab === 'action_required') {
-            items = items.filter((t: ThreadListItem) => t.intent === 'action_required');
-        } else if (activeTab === 'fyi') {
-            items = items.filter((t: ThreadListItem) => t.intent === 'fyi');
-        }
-
-        // Search filter
+        // Search filter (client-side for now)
         if (search) {
             const q = search.toLowerCase();
             items = items.filter((t: ThreadListItem) =>
@@ -45,10 +45,10 @@ export default function InboxPage() {
         }
 
         return items;
-    }, [search, activeTab]);
+    }, [search, threads]);
 
     return (
-        <AppShell title="Inbox" subtitle={`${mockThreadListItems.length} threads`}>
+        <AppShell title="Inbox" subtitle={`${threads?.length || 0} threads`}>
             <div className="max-w-4xl mx-auto space-y-4">
 
                 {/* ─── Search + Filters ───────────────── */}
@@ -93,7 +93,17 @@ export default function InboxPage() {
                 <Card>
                     <CardContent className="p-0">
                         <ScrollArea className="h-[calc(100vh-280px)]">
-                            {filtered.length === 0 ? (
+                            {isLoading ? (
+                                <div className="p-4 space-y-4">
+                                    {[1, 2, 3, 4, 5].map((i) => (
+                                        <div key={i} className="h-20 rounded-lg bg-paper-mid animate-pulse" />
+                                    ))}
+                                </div>
+                            ) : error ? (
+                                <div className="p-8 text-center text-danger">
+                                    Failed to load threads.
+                                </div>
+                            ) : filtered.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                                     <Inbox className="h-10 w-10 mb-3 opacity-40" />
                                     <p className="text-sm">No threads match your filters</p>

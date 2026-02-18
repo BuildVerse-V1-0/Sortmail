@@ -53,10 +53,9 @@ export function TaskFilters({
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All Priorities</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="do_now">Do Now</SelectItem>
+                        <SelectItem value="do_today">Do Today</SelectItem>
+                        <SelectItem value="can_wait">Can Wait</SelectItem>
                     </SelectContent>
                 </Select>
 
