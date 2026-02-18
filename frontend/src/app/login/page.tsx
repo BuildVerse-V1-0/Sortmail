@@ -111,7 +111,7 @@ export default function LoginPage() {
                     {/* OAuth Buttons */}
                     <div className="space-y-3">
                         <button
-                            onClick={() => handleLogin("google")}
+                            onClick={handleGoogleLogin}
                             disabled={loading !== null}
                             className="auth-item w-full h-12 rounded-lg border border-border-light bg-white hover:bg-paper-mid disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-sm font-medium text-ink transition-all active:scale-[0.98]"
                         >
