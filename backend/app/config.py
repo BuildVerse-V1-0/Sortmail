@@ -21,29 +21,34 @@ class Settings(BaseSettings):
     
     # Server
     # CORS
-    CORS_ORIGINS: List[str] = ["*"]
+    # STRICT PRODUCTION SECURITY: Only allow the actual frontend domain.
+    # Localhost is removed to prevent local unauthorized clients from browser-side calls.
+    CORS_ORIGINS: List[str] = [
+        "https://sortmail.vercel.app", 
+        # Add "http://localhost:3000" here manually if developing locally
+    ]
     
     # Frontend URL (for redirects)
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str # Required in production
     
     # Database
-    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/sortmail"
+    DATABASE_URL: str # Required
     
-    # Redis (optional for MVP)
-    REDIS_URL: str = "redis://localhost:6379"
+    # Redis (optional for MVP, required for Prod)
+    REDIS_URL: str # Required
     
     # OAuth - Google
-    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
-    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET")
-    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/auth/google/callback"
+    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
+    GOOGLE_REDIRECT_URI: str # Required
     
     # OAuth - Microsoft
     MICROSOFT_CLIENT_ID: str = ""
     MICROSOFT_CLIENT_SECRET: str = ""
-    MICROSOFT_REDIRECT_URI: str = "http://localhost:8000/api/auth/outlook/callback"
+    MICROSOFT_REDIRECT_URI: str # Required
     
     # JWT
-    JWT_SECRET: str = "your-secret-key-change-in-production"
+    JWT_SECRET: str # Required
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRY_HOURS: int = 24
     
