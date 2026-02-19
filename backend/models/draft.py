@@ -18,7 +18,6 @@ class DraftTone(str, enum.Enum):
     CONCISE = "concise"
     FORMAL = "formal"
     ASSERTIVE = "assertive"
-    ASSERTIVE = "assertive"
     CUSTOM = "custom"
 
 ToneType = DraftTone  # Alias for backward compatibility
