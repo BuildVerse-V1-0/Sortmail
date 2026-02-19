@@ -54,7 +54,7 @@ async def get_dashboard_stats(
     tasks_due_stmt = select(func.count()).where(
         Task.user_id == current_user.id,
         Task.status == TaskStatus.PENDING,
-        Task.deadline != None
+        Task.due_date != None
     )
     tasks_due_count = (await db.execute(tasks_due_stmt)).scalar() or 0
     
