@@ -68,6 +68,7 @@ out/
 
 # Data
 data/
+!frontend/src/data/
 *.db
 *.sqlite3
 
