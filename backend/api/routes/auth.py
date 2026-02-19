@@ -155,9 +155,9 @@ async def google_callback(
     token_pair = jwt.create_token_pair(user.id, user.email)
     
     # 9. Redirect
-    # TODO: In production, use httpOnly cookie for token
-    frontend_url = "http://localhost:3000/dashboard"
-    redirect_url = f"{frontend_url}?token={token_pair.access_token}"
+    # In production, use httpOnly cookie for token if possible, but query param is standard for OAuth callback
+    from app.config import settings
+    redirect_url = f"{settings.FRONTEND_URL}?token={token_pair.access_token}"
     
     return RedirectResponse(url=redirect_url)
 

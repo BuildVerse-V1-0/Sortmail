@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     
     # Server
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
-    
     # CORS
     CORS_ORIGINS: List[str] = ["*"]
+    
+    # Frontend URL (for redirects)
+    FRONTEND_URL: str = "http://localhost:3000"
     
     # Database
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/sortmail"
