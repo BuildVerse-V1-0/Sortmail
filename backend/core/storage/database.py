@@ -65,6 +65,8 @@ if is_production:
     # Some setups prefer it in the query
     # query_params["statement_cache_size"] = "0" 
     # SQLAlchemy sometimes warns about this, but passing it in connect_args is standard.
+    # FORCE IT into the URL query as well, just in case connect_args is dropping it.
+    query_params["statement_cache_size"] = "0"
     
     db_url_obj = db_url_obj._replace(query=query_params)
     
