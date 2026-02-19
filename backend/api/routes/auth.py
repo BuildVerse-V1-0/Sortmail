@@ -191,6 +191,7 @@ async def google_callback(
     from app.config import settings
     redirect_url = f"{settings.FRONTEND_URL}?token={token_pair.access_token}"
     
+    logger.info(f"✅ Google OAuth Success! Redirecting to Frontend: {redirect_url}")
     return RedirectResponse(url=redirect_url)
 
 
