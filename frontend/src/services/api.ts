@@ -4,24 +4,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export const api = axios.create({
     baseURL: API_URL,
+    withCredentials: true, // Essential for HttpOnly Cookie Auth
     headers: {
         'Content-Type': 'application/json',
     },
 });
-
-// Request Interceptor: Inject Token
-api.interceptors.request.use(
-    (config) => {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => {
-        return Promise.reject(error);
-    }
-);
 
 // Response Interceptor: Handle Errors (401)
 api.interceptors.response.use(
@@ -30,7 +17,6 @@ api.interceptors.response.use(
         if (error.response?.status === 401) {
             // Token expired or invalid
             if (typeof window !== 'undefined') {
-                localStorage.removeItem('auth_token');
                 // Redirect to login if not already there
                 if (!window.location.pathname.startsWith('/login')) {
                     window.location.href = '/login';
