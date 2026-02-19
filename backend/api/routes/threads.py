@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
 from core.storage.database import get_db
-from api.deps import get_current_user
+from api.dependencies import get_current_user
 from models.user import User
 from models.thread import Thread
 
