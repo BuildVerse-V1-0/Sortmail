@@ -66,9 +66,18 @@ async def google_callback(
     
     # 1. Validate State
     state_key = f"oauth:state:{state}"
-    state_json = await redis.get(state_key)
+    logger.info(f"🔑 Validating OAuth State: {state}")
+    logger.info(f"🔎 Redis Key Lookup: {state_key}")
+    
+    try:
+        state_json = await redis.get(state_key)
+        logger.info(f"📄 Redis Result: {'FOUND' if state_json else 'NOT FOUND'}")
+    except Exception as e:
+        logger.error(f"❌ Redis Error during state lookup: {e}")
+        raise HTTPException(status_code=500, detail="Redis connection failed")
     
     if not state_json:
+        logger.warning(f"⚠️ OAuth State Missing/Expired for key: {state_key}")
         raise HTTPException(status_code=400, detail="Invalid or expired state parameter")
         
     state_data = json.loads(state_json)
