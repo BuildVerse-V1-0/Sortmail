@@ -226,7 +226,7 @@ class DraftDTOv1(BaseModel):
         default_factory=datetime.utcnow,
         description="When draft was generated"
     )
-    model_version: str = Field(
+    schema_version: str = Field(
         description="LLM model used for generation"
     )
     
@@ -245,7 +245,7 @@ class DraftDTOv1(BaseModel):
                 "references_attachments": True,
                 "references_deadlines": False,
                 "created_at": "2026-01-18T14:30:00Z",
-                "model_version": "gemini-1.5-pro"
+                "schema_version": "gemini-1.5-pro"
             }
         }
 

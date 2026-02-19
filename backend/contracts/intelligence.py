@@ -148,7 +148,7 @@ class ThreadIntelV1(BaseModel):
     )
     
     # Metadata
-    model_version: str = Field(
+    schema_version: str = Field(
         description="LLM model used (e.g., 'gemini-1.5-pro')"
     )
     processed_at: datetime = Field(
@@ -170,7 +170,7 @@ class ThreadIntelV1(BaseModel):
                 "attachment_summaries": [],
                 "suggested_action": "Review attached contract and respond",
                 "suggested_reply_points": ["Confirm receipt", "Note any concerns"],
-                "model_version": "gemini-1.5-pro",
+                "schema_version": "gemini-1.5-pro",
                 "processed_at": "2026-01-18T14:35:00Z"
             }
         }

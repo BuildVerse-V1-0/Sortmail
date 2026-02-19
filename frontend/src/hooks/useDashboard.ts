@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { api, endpoints } from '@/lib/api';
+import { dashboardApi } from '@/services/api';
 import { mockDashboard } from '@/data/mockData';
 import { DashboardData } from '@/types/dashboard';
 
@@ -15,8 +15,7 @@ export function useDashboard() {
                 return mockDashboard;
             }
 
-            const { data } = await api.get(endpoints.dashboard);
-            return data;
+            return await dashboardApi.getStats();
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
     });

@@ -44,38 +44,95 @@ class IngestionService:
 
     async def _sync_account(self, account: ConnectedAccount):
         """
-        Sync a single connected account.
+        Sync a single connected account with incremental logic and state management.
         """
         logger.info(f"Syncing account {account.id} ({account.provider})")
+        
+        # 0. Check State
+        # If stuck in syncing for > 1 hour, assume failed and reset (simple recovery)
+        if account.sync_status == "syncing":
+             if account.last_sync_at and (datetime.utcnow() - account.last_sync_at).total_seconds() < 3600:
+                 logger.info(f"Account {account.id} is already syncing. Skipping.")
+                 return
+             logger.warning(f"Account {account.id} stuck in syncing. Resetting.")
 
-        # Initialize client for fetching threads AND attachments
-        # TODO: Refactor fetch_threads to accept client instance or move logic here
+        from core.auth.token_manager import get_valid_google_token, TokenRevokedError
         from core.ingestion.gmail_client import GmailClient
-        client = None
-        if account.provider == ProviderType.GMAIL:
-            client = GmailClient(account.access_token)
-            await client.initialize()
+        from core.ingestion.email_fetcher import fetch_incremental_changes
 
-        # 2. Fetch threads (TODO: decrypt token)
-        # Note: This creates ANOTHER client instance inside. Optimal? No. MVP? Yes.
-        threads = await fetch_threads(
-            user_id=account.user_id,
-            provider=account.provider.value,
-            access_token=account.access_token,
-            max_results=20  # Limit for MVP
-        )
+        try:
+            # 1. Update State
+            account.sync_status = "syncing"
+            account.sync_error = None
+            account.last_sync_at = datetime.utcnow() # Mark start time
+            await self.db.commit()
 
-        if not threads:
-            return
+            # 2. Get Secure Token
+            if account.provider == ProviderType.GMAIL:
+                access_token = await get_valid_google_token(account.user_id)
+                client = GmailClient(access_token)
+                await client.initialize()
+            else:
+                # TODO: Implement Outlook token manager
+                logger.warning("Outlook sync not yet fully implemented")
+                return
 
-        # 3. Persist threads & Attachments
-        for thread_contract in threads:
-            await self._save_thread(account.user_id, thread_contract, client)
+            # 3. Get Current History ID
+            profile = await client.get_profile()
+            current_history_id = profile.get('historyId')
+            
+            threads = []
+            
+            # 4. Sync Strategy
+            if account.last_history_id:
+                try:
+                    logger.info(f"Attempting incremental sync for {account.id} from {account.last_history_id}")
+                    threads = await fetch_incremental_changes(
+                        user_id=account.user_id,
+                        provider=account.provider.value,
+                        access_token=access_token,
+                        start_history_id=account.last_history_id,
+                        client=client
+                    )
+                except Exception as e:
+                    logger.warning(f"Incremental sync failing, falling back to full sync: {e}")
+                    account.last_history_id = None # Force full sync
+            
+            # Fallback or Full Sync
+            if not threads and not account.last_history_id:
+                logger.info(f"Performing full sync for {account.id}")
+                threads = await fetch_threads(
+                    user_id=account.user_id,
+                    provider=account.provider.value,
+                    access_token=access_token,
+                    max_results=20,
+                    client=client
+                )
 
-        # 4. Update sync status
-        account.last_sync_at = datetime.utcnow()
-        await self.db.commit()
-        logger.info(f"Synced {len(threads)} threads for account {account.id}")
+            # 5. Persist Data
+            if threads:
+                for thread_contract in threads:
+                    await self._save_thread(account.user_id, thread_contract, client)
+                logger.info(f"Synced {len(threads)} threads for account {account.id}")
+
+            # 6. Success State
+            account.sync_status = "idle"
+            account.last_history_id = current_history_id
+            account.last_sync_at = datetime.utcnow()
+            await self.db.commit()
+
+        except TokenRevokedError:
+            logger.error(f"Token revoked for account {account.id}")
+            account.sync_status = "revoked"
+            account.sync_error = "Access revoked"
+            await self.db.commit()
+            
+        except Exception as e:
+            logger.error(f"Sync failed for account {account.id}: {e}")
+            account.sync_status = "failed"
+            account.sync_error = str(e)
+            await self.db.commit()
+
 
     async def _save_thread(self, user_id: str, contract: EmailThreadV1, client=None):
         """
@@ -104,6 +161,12 @@ class IngestionService:
         thread.participants = contract.participants
         thread.last_email_at = contract.last_updated
         thread.last_synced_at = datetime.utcnow()
+        
+        # Meta (New)
+        thread.labels = contract.labels
+        thread.is_unread = 1 if contract.is_unread else 0
+        thread.is_starred = contract.is_starred
+        thread.has_attachments = len(contract.attachments) > 0
         
         # 3b. Upsert Messages
         for msg_contract in contract.messages:

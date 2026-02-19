@@ -42,8 +42,23 @@ GOOGLE_SCOPES = [
 ]
 
 
-def get_google_auth_url(state: str = "") -> str:
-    """Generate Google OAuth authorization URL."""
+import secrets
+import hashlib
+import base64
+
+# ... imports ...
+
+def generate_code_verifier() -> str:
+    """Generate a random PKCE code verifier."""
+    return secrets.token_urlsafe(64)
+
+def generate_code_challenge(verifier: str) -> str:
+    """Generate a SHA-256 code challenge from the verifier."""
+    digest = hashlib.sha256(verifier.encode()).digest()
+    return base64.urlsafe_b64encode(digest).decode().rstrip("=")
+
+def get_google_auth_url(state: str, code_challenge: str) -> str:
+    """Generate Google OAuth authorization URL with PKCE."""
     params = {
         "client_id": settings.GOOGLE_CLIENT_ID,
         "redirect_uri": settings.GOOGLE_REDIRECT_URI,
@@ -52,12 +67,14 @@ def get_google_auth_url(state: str = "") -> str:
         "access_type": "offline",
         "prompt": "consent",
         "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
     }
     query = "&".join(f"{k}={v}" for k, v in params.items())
     return f"{GOOGLE_AUTH_URL}?{query}"
 
 
-async def exchange_code_for_tokens(code: str) -> GoogleTokens:
+async def exchange_code_for_tokens(code: str, code_verifier: str) -> GoogleTokens:
     """Exchange authorization code for tokens."""
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -68,6 +85,7 @@ async def exchange_code_for_tokens(code: str) -> GoogleTokens:
                 "code": code,
                 "grant_type": "authorization_code",
                 "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+                "code_verifier": code_verifier,
             },
         )
         if response.status_code != 200:

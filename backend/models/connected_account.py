@@ -33,6 +33,9 @@ class ConnectedAccount(Base):
     
     # Sync tracking
     last_sync_at = Column(DateTime)
+    last_history_id = Column(String)
+    sync_status = Column(String, default="idle") # idle, syncing, failed, revoked
+    sync_error = Column(String)
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -69,6 +69,10 @@ class EmailMessage(BaseModel):
         default=False,
         description="True if this message was sent by the connected user"
     )
+    labels: List[str] = Field(
+        default_factory=list,
+        description="Provider-specific labels (e.g. UNREAD, SENT)"
+    )
 
 
 class EmailThreadV1(BaseModel):
@@ -108,6 +112,18 @@ class EmailThreadV1(BaseModel):
     )
     provider: str = Field(
         description="Email provider: 'gmail' or 'outlook'"
+    )
+    labels: List[str] = Field(
+        default_factory=list,
+        description="Aggregated labels e.g. ['INBOX', 'UNREAD', 'IMPORTANT']"
+    )
+    is_unread: bool = Field(
+        default=False,
+        description="True if any message in thread is unread"
+    )
+    is_starred: bool = Field(
+        default=False,
+        description="True if thread is starred/flagged"
     )
     
     class Config:

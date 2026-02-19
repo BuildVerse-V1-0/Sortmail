@@ -38,6 +38,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Custom Security Middleware
+from api.middleware.security import (
+    SecurityHeadersMiddleware, 
+    RateLimitMiddleware,
+    RequestIDMiddleware
+)
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(RequestIDMiddleware)
+
 
 @app.get("/")
 async def root():
@@ -56,11 +67,12 @@ async def health():
 
 
 # Import and include routers
-from api.routes import auth
+from api.routes import auth, emails, threads, tasks, drafts, reminders, dashboard
+
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-# from api.routes import emails, threads, tasks, drafts, reminders
-# app.include_router(emails.router, prefix="/api/emails", tags=["emails"])
-# app.include_router(threads.router, prefix="/api/threads", tags=["threads"])
-# app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
-# app.include_router(drafts.router, prefix="/api/drafts", tags=["drafts"])
-# app.include_router(reminders.router, prefix="/api/reminders", tags=["reminders"])
+app.include_router(emails.router, prefix="/api/emails", tags=["emails"])
+app.include_router(threads.router, prefix="/api/threads", tags=["threads"])
+app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(drafts.router, prefix="/api/drafts", tags=["drafts"])
+app.include_router(reminders.router, prefix="/api/reminders", tags=["reminders"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
