@@ -47,7 +47,15 @@ async def google_auth(request: Request):
     }
     
     redis = await get_redis()
-    await redis.setex(f"oauth:state:{state}", 600, json.dumps(state_data))
+    state_key = f"oauth:state:{state}"
+    logger.info(f"🆕 Generating OAuth State: {state}")
+    logger.info(f"💾 Storing Redis Key: {state_key}")
+    
+    await redis.setex(state_key, 600, json.dumps(state_data))
+    
+    # Verify immediate write
+    saved_val = await redis.get(state_key)
+    logger.info(f"✅ Immediate Verify Read: {'SUCCESS' if saved_val else 'FAILED'}")
     
     # 3. Generate URL
     auth_url = oauth_google.get_google_auth_url(state, code_challenge)
