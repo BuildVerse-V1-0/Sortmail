@@ -51,6 +51,7 @@ class User(Base):
     # Status & Type
     status = Column(Enum(UserStatus, name="user_status"), default=UserStatus.ACTIVE)
     account_type = Column(Enum(AccountType, name="account_type"), default=AccountType.INDIVIDUAL)
+    is_superuser = Column(Boolean, default=False)
     
     # Multi-tenancy (Future)
     workspace_id = Column(String, nullable=True) # FK to workspaces.id
