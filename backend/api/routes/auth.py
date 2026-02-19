@@ -188,12 +188,26 @@ async def google_callback(
     token_pair = jwt.create_token_pair(user.id, user.email)
     
     # 9. Redirect
-    # In production, use httpOnly cookie for token if possible, but query param is standard for OAuth callback
+    # Option 1: HttpOnly Cookie (Best Security)
     from app.config import settings
-    redirect_url = f"{settings.FRONTEND_URL}?token={token_pair.access_token}"
+    redirect_url = f"{settings.FRONTEND_URL}/dashboard"
     
-    logger.info(f"✅ Google OAuth Success! Redirecting to Frontend: {redirect_url}")
-    return RedirectResponse(url=redirect_url)
+    response = RedirectResponse(url=redirect_url)
+    
+    # Cookie Configuration for Cross-Domain (Vercel <-> Railway)
+    # Using 'Lax' breaks cross-site if domains differ. 'None' requires Secure=True.
+    response.set_cookie(
+        key="access_token",
+        value=token_pair.access_token,
+        httponly=True,
+        secure=True, # Required for SameSite=None
+        samesite="None", # Allow cross-site cookie
+        max_age=60 * 60 * 24 * 7, # 7 days (or match token expiry)
+        path="/"
+    )
+    
+    logger.info(f"✅ Google OAuth Success! Setting Cookie & Redirecting to: {redirect_url}")
+    return response
 
 
 @router.get("/outlook", response_model=AuthURLResponse)

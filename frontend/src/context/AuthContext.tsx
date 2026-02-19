@@ -1,7 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 
 // Define the User type based on backend response
 interface User {
@@ -18,7 +18,7 @@ interface AuthContextType {
     isLoading: boolean;
     login: () => void; // Redirects to Google
     logout: () => void;
-    verifyToken: (token: string) => Promise<boolean>; // Exposed for AuthTokenListener
+    checkSession: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,47 +26,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // API URL from env or default
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://sortmail-production.up.railway.app";
 
-// --- Helper Component for URL Token Handling ---
-function AuthTokenHandler() {
-    const searchParams = useSearchParams();
-    const router = useRouter();
-    const { verifyToken } = useAuth();
-    const [processed, setProcessed] = useState(false);
-
-    useEffect(() => {
-        const urlToken = searchParams?.get("token");
-
-        if (urlToken && !processed) {
-            console.log("🔗 Token found in URL via Handler, authenticating...");
-            setProcessed(true); // Prevent double firing
-
-            // Save immediately
-            localStorage.setItem("sortmail_token", urlToken);
-
-            verifyToken(urlToken).then((success) => {
-                if (success) {
-                    console.log("✅ OAuth Login Success (Handler)");
-                    router.replace("/dashboard");
-                }
-            });
-        }
-    }, [searchParams, verifyToken, router, processed]);
-
-    return null; // This component handles logic only
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
 
-    // Fetch user from backend using token
-    const verifyToken = async (token: string) => {
+    // Fetch user from backend using HttpOnly Cookie
+    const checkSession = async () => {
         try {
             const res = await fetch(`${API_URL}/api/auth/me`, {
+                method: "GET",
                 headers: {
-                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
                 },
+                credentials: "include", // Important: Send Cookies
             });
 
             if (res.ok) {
@@ -74,27 +47,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(userData);
                 return true;
             } else {
-                console.error("Failed to fetch user", res.status);
-                localStorage.removeItem("sortmail_token");
+                console.log("No active session (401)");
+                setUser(null);
                 return false;
             }
         } catch (error) {
-            console.error("Auth fetch error", error);
-            localStorage.removeItem("sortmail_token");
+            console.error("Auth check error", error);
+            setUser(null);
             return false;
         }
     };
 
     // Initial Session Check
     useEffect(() => {
-        const initSession = async () => {
-            const storedToken = localStorage.getItem("sortmail_token");
-            if (storedToken) {
-                await verifyToken(storedToken);
-            }
+        const initAuth = async () => {
+            await checkSession();
             setIsLoading(false);
         };
-        initSession();
+        initAuth();
     }, []);
 
     // Redirect to Backend OAuth endpoint
@@ -102,17 +72,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.location.href = `${API_URL}/api/auth/google`;
     };
 
-    const logout = () => {
-        localStorage.removeItem("sortmail_token");
+    const logout = async () => {
+        try {
+            await fetch(`${API_URL}/api/auth/logout`, { method: "POST", credentials: "include" });
+        } catch (e) {
+            console.error("Logout failed", e);
+        }
         setUser(null);
         router.push("/login");
     };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, verifyToken }}>
-            <Suspense fallback={null}>
-                <AuthTokenHandler />
-            </Suspense>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, checkSession }}>
             {children}
         </AuthContext.Provider>
     );
