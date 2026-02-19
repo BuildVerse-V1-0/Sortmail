@@ -56,24 +56,36 @@ if is_production:
     print("🛠️  Disabling prepared statements (statement_cache_size=0)")
     connect_args["statement_cache_size"] = 0
     
-    # 3. Strip 'sslmode' query param (conflicts with manual SSL context)
+    # 3. Strip 'sslmode' query param & Add 'statement_cache_size' to query just in case
     query_params = dict(db_url_obj.query)
     if "sslmode" in query_params:
         print("🧹 Removing 'sslmode' query parameter")
         del query_params["sslmode"]
-        db_url_obj = db_url_obj._replace(query=query_params)
+    
+    # Some setups prefer it in the query
+    # query_params["statement_cache_size"] = "0" 
+    # SQLAlchemy sometimes warns about this, but passing it in connect_args is standard.
+    
+    db_url_obj = db_url_obj._replace(query=query_params)
+    
+    # 4. Force SQLAlchemy to not use prepared statements for the ping
+    # pool_pre_ping=True uses "SELECT 1", which might be prepared. 
+    # Let's try disabling pool_pre_ping TEMPORARILY to see if the app starts.
+    # If it starts, then the pre-ping is the culprit.
+    
 else:
     print("💻 Configuring database for LOCAL environment")
 
 print(f"⚙️  Final connect_args: {connect_args}")
 
 # Create async engine
+# Create async engine
 engine = create_async_engine(
     db_url_obj,
     echo=settings.DEBUG,
     future=True,
     connect_args=connect_args,
-    pool_pre_ping=True, # Verify connection before usage
+    pool_pre_ping=True if not is_production else False, # Pre-ping might attempt prepared statements
 )
 
 # Session factory
