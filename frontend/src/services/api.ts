@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = ""; // Relative path to leverage Next.js Rewrites (Proxy)
 
 export const api = axios.create({
     baseURL: API_URL,

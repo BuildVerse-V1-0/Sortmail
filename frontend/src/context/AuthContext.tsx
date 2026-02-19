@@ -23,8 +23,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// API URL from env or default
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://sortmail-production.up.railway.app";
+// API URL: Empty string to use relative path (proxied by Next.js to Backend)
+// This ensures cookies are First-Party (Same-Origin).
+const API_URL = "";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
