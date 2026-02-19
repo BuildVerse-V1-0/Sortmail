@@ -7,7 +7,6 @@ from .attachment import Attachment
 from .draft import Draft, ToneType
 from .connected_account import ConnectedAccount, ProviderType
 from .document import Document
-from .waiting_for import WaitingFor
 from .reminder import Reminder
 from .vip_domain import VIPDomain
 from .calendar_suggestion import CalendarSuggestion
@@ -34,7 +33,6 @@ __all__ = [
     "Draft",
     "ToneType",
     # Follow-ups
-    "WaitingFor",
     "Reminder",
     "VIPDomain",
     "CalendarSuggestion",
