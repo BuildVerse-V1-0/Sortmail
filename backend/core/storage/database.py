@@ -32,26 +32,40 @@ except Exception as e:
 db_url_obj = make_url(original_url)
 
 # SSL Context for Production (Railway/Supabase usually need this)
+# SSL and Connection Arguments
 connect_args = {}
-if settings.ENVIRONMENT == "production" or "railway" in settings.DATABASE_URL or "railway" in (db_url_obj.host or "") or "supabase" in (db_url_obj.host or ""):
-    # Create a custom SSL context that ignores hostname verification if needed
+
+# Check for Production / Railway / Supabase
+is_production = (
+    settings.ENVIRONMENT == "production" 
+    or "railway" in settings.DATABASE_URL 
+    or "railway" in (db_url_obj.host or "") 
+    or "supabase" in (db_url_obj.host or "")
+)
+
+if is_production:
+    print("🚀 Configuring database for PRODUCTION/CLOUD environment")
+    
+    # 1. SSL Context (Ignore hostname for internal routing)
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     connect_args["ssl"] = ctx
     
-    # IMPORTANT: Disable prepared statements for Supabase/pgbouncer transaction pooling
-    # This fixes "DuplicatePreparedStatementError"
+    # 2. Disable Prepared Statements (CRITICAL for Supabase/pgbouncer transaction mode)
+    print("🛠️  Disabling prepared statements (statement_cache_size=0)")
     connect_args["statement_cache_size"] = 0
     
-    # IMPORTANT: Remove 'sslmode' or other query params that might conflict with asyncpg
-    # asyncpg does not support 'sslmode' in the query string when using connect_args['ssl']
+    # 3. Strip 'sslmode' query param (conflicts with manual SSL context)
     query_params = dict(db_url_obj.query)
     if "sslmode" in query_params:
+        print("🧹 Removing 'sslmode' query parameter")
         del query_params["sslmode"]
-    
-    # Reconstruct URL without conflicting params
-    db_url_obj = db_url_obj._replace(query=query_params)
+        db_url_obj = db_url_obj._replace(query=query_params)
+else:
+    print("💻 Configuring database for LOCAL environment")
+
+print(f"⚙️  Final connect_args: {connect_args}")
 
 # Create async engine
 engine = create_async_engine(
