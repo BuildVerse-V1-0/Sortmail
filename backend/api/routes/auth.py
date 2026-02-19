@@ -47,7 +47,7 @@ async def google_auth(request: Request):
     }
     
     redis = await get_redis()
-    state_key = f"oauth:state:{state}"
+    state_key = f"oauth_state:{state}"
     logger.info(f"🆕 Generating OAuth State: {state}")
     logger.info(f"💾 Storing Redis Key: {state_key}")
     
@@ -73,7 +73,8 @@ async def google_callback(
     redis = await get_redis()
     
     # 1. Validate State
-    state_key = f"oauth:state:{state}"
+    # 1. Validate State
+    state_key = f"oauth_state:{state}"
     logger.info(f"🔑 Validating OAuth State: {state}")
     logger.info(f"🔎 Redis Key Lookup: {state_key}")
     
@@ -215,7 +216,7 @@ async def test_redis():
         # 2. Test Read
         value = await redis.get("test_key")
         # 3. List States
-        keys = await redis.keys("oauth:state:*")
+        keys = await redis.keys("oauth_state:*")
         
         return {
             "status": "ok",

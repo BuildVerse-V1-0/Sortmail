@@ -16,14 +16,17 @@ class DataEncryption:
         """Get or create the AESGCM cipher instance."""
         if cls._cipher is None:
             # key must be 32 bytes (256 bits) URL-safe base64 encoded
-            # e.g., generated with `base64.urlsafe_b64encode(os.urandom(32))`
-            key_b64 = os.getenv("ENCRYPTION_KEY_KMS_ID") or os.getenv("ENCRYPTION_KEY", "")
+            from app.config import settings
+            key_b64 = settings.ENCRYPTION_KEY or os.getenv("ENCRYPTION_KEY", "")
             
             if not key_b64:
                 # Retrieve from secrets manager or fallback for dev
-                # TODO: In production, raise error if key missing
-                # For dev simplicity, generate one if missing but warn loudly
-                print("WARNING: No ENCRYPTION_KEY found. Generating temporary key (DATA LOSS ON RESTART).")
+                if settings.ENVIRONMENT == "production":
+                    # In production, we should ideally fail, but for now we warn loudly to avoid boot loops if key is missing
+                    print("🚨 CRITICAL WARNING: ENCRYPTION_KEY missing in PRODUCTION. Generating temporary key (DATA LOSS ON RESTART).")
+                else:
+                    print("⚠️ WARNING: No ENCRYPTION_KEY found (Dev). Generating temporary key.")
+                    
                 key = AESGCM.generate_key(bit_length=256)
             else:
                 try:

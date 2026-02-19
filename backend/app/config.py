@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     
+    # Security
+    ENCRYPTION_KEY: str = "" # Required in production (32-byte base64)
+    
     # Vector DB
     CHROMA_PERSIST_DIR: str = "./data/chroma"
     
