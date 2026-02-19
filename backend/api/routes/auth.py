@@ -134,7 +134,7 @@ async def google_callback(
                 provider=EmailProvider.GMAIL,
             access_token=enc_access_token, # Storing encrypted
                 created_at=datetime.utcnow(),
-                is_active=True
+                status=UserStatus.ACTIVE
             )
             db.add(user)
             await db.commit()
