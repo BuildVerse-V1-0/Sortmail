@@ -1,73 +1,101 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
+// Define the User type based on backend response
 interface User {
     id: string;
     email: string;
     name: string;
     avatar?: string;
+    picture_url?: string; // Backend uses picture_url
 }
 
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     isLoading: boolean;
-    login: () => Promise<void>;
-    logout: () => Promise<void>;
+    login: () => void; // Redirects to Google
+    logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// API URL from env or default
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://sortmail-production.up.railway.app";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
+    const searchParams = useSearchParams();
 
-    // Mock session check on mount
+    // Fetch user from backend using token
+    const fetchUser = async (token: string) => {
+        try {
+            const res = await fetch(`${API_URL}/api/auth/me`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (res.ok) {
+                const userData = await res.json();
+                setUser(userData);
+                return true;
+            } else {
+                console.error("Failed to fetch user", res.status);
+                localStorage.removeItem("sortmail_token");
+                return false;
+            }
+        } catch (error) {
+            console.error("Auth fetch error", error);
+            localStorage.removeItem("sortmail_token");
+            return false;
+        }
+    };
+
     useEffect(() => {
-        const checkSession = async () => {
-            // Simulate network delay
-            await new Promise((resolve) => setTimeout(resolve, 500));
+        const initAuth = async () => {
+            // 1. Check URL for token (OAuth callback)
+            const urlToken = searchParams?.get("token");
 
-            // Check localStorage
-            const storedUser = localStorage.getItem("sortmail_user");
-            if (storedUser) {
-                setUser(JSON.parse(storedUser));
+            if (urlToken) {
+                console.log("🔗 Token found in URL, authenticating...");
+                localStorage.setItem("sortmail_token", urlToken);
+
+                // Fetch user immediately
+                const success = await fetchUser(urlToken);
+                if (success) {
+                    console.log("✅ OAuth Login Success");
+                    router.replace("/dashboard"); // Clean URL and redirect
+                } else {
+                    setIsLoading(false);
+                }
+            }
+            // 2. Check LocalStorage (Session restore)
+            else {
+                const storedToken = localStorage.getItem("sortmail_token");
+                if (storedToken) {
+                    await fetchUser(storedToken);
+                }
             }
             setIsLoading(false);
         };
 
-        checkSession();
-    }, []);
+        initAuth();
+    }, [searchParams, router]);
 
-    const login = async () => {
-        setIsLoading(true);
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        const mockUser: User = {
-            id: "user-123",
-            email: "you@company.com",
-            name: "Demo User",
-            avatar: "/placeholder-user.jpg"
-        };
-
-        setUser(mockUser);
-        localStorage.setItem("sortmail_user", JSON.stringify(mockUser));
-        setIsLoading(false);
-        router.push("/dashboard");
+    // Redirect to Backend OAuth endpoint
+    const login = () => {
+        window.location.href = `${API_URL}/api/auth/google`;
     };
 
-    const logout = async () => {
-        setIsLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
+    const logout = () => {
+        localStorage.removeItem("sortmail_token");
         setUser(null);
-        localStorage.removeItem("sortmail_user");
-        setIsLoading(false);
-        router.push("/login");
+        router.push("/login"); // or home
     };
 
     return (
