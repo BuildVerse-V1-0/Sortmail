@@ -11,11 +11,13 @@ export const api = axios.create({
 });
 
 // Response Interceptor: Handle Errors
-(error) => {
-    // We removed the auto-redirect here to prevent race conditions.
-    // AuthContext handles the global auth state.
-    return Promise.reject(error);
-}
+api.interceptors.response.use(
+    (response) => response,
+    (error: any) => {
+        // We removed the auto-redirect here to prevent race conditions.
+        // AuthContext handles the global auth state.
+        return Promise.reject(error);
+    }
 );
 
 export const dashboardApi = {
