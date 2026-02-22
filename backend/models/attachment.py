@@ -37,9 +37,9 @@ class Attachment(Base):
     __tablename__ = "attachments"
     
     id = Column(String, primary_key=True)
-    message_id = Column(String, ForeignKey("emails.id", ondelete="CASCADE"), nullable=False, index=True) # Rename locally to email_id via alias if needed, or just use message_id mapping to emails.id
-    # The prompt says email_id. Let's use email_id and handle migration if needed.
+    # FK to emails table (not messages) — only email_id column exists in DB
     email_id = Column(String, ForeignKey("emails.id", ondelete="CASCADE"), nullable=False, index=True)
+
     
     # File info
     external_id = Column(String, nullable=True)
