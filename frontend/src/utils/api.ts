@@ -1,5 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL!
-    .replace(/^http:\/\/(?!localhost)/, 'https://');
+const RAW_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sortmail-production.up.railway.app';
+const API_URL = RAW_URL.replace(/^http:\/\/(?!localhost)/, 'https://');
 
 export const api = {
     async fetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
