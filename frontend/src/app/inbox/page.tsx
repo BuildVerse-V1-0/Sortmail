@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,10 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import AppShell from '@/components/layout/AppShell';
-import { api, endpoints } from '@/lib/api';
 import { useThreads } from '@/hooks/useThreads';
+import { useSmartSync } from '@/hooks/useSmartSync';
 import {
     Search,
     RefreshCw,
@@ -25,39 +23,16 @@ import {
 import { FilterTab, ThreadListItem } from '@/types/dashboard';
 
 export default function InboxPage() {
-    const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
     const [activeTab, setActiveTab] = useState<FilterTab>('all');
-    const [syncing, setSyncing] = useState(false);
-    const [syncMsg, setSyncMsg] = useState('');
 
-    const { data: threads, isLoading, error, refetch } = useThreads(activeTab === 'all' ? undefined : activeTab);
+    // DB-first: threads load instantly from cache/DB
+    const { data: threads, isLoading, error } = useThreads(activeTab === 'all' ? undefined : activeTab);
 
-    // Auto-sync at most ONCE per session when inbox is empty
-    React.useEffect(() => {
-        if (isLoading) return;
-        if ((threads?.length ?? 0) > 0) return;  // Already have data, skip
-        const key = 'sortmail_autosync_done';
-        if (sessionStorage.getItem(key)) return;  // Already ran this session
-        sessionStorage.setItem(key, '1');
-        triggerSync();
-    }, [isLoading]);  // Only re-run if loading state changes
+    // Smart background sync: checks if stale → incremental Gmail sync → invalidates cache
+    const { syncState, triggerSync } = useSmartSync();
 
-
-    const triggerSync = async () => {
-        setSyncing(true);
-        setSyncMsg('Syncing your emails...');
-        try {
-            await api.post(endpoints.emailSync);
-            setSyncMsg('Sync complete!');
-            await refetch();
-        } catch {
-            setSyncMsg('Sync failed. Check your connected account.');
-        } finally {
-            setSyncing(false);
-            setTimeout(() => setSyncMsg(''), 4000);
-        }
-    };
+    const isSyncing = syncState === 'syncing' || syncState === 'checking';
 
     const filtered = useMemo(() => {
         if (!threads) return [];
@@ -71,6 +46,7 @@ export default function InboxPage() {
         }
         return items;
     }, [search, threads]);
+
 
     return (
         <AppShell title="Inbox" subtitle={`${threads?.length || 0} threads`}>
@@ -90,13 +66,17 @@ export default function InboxPage() {
                     <Button
                         variant="outline" size="icon" className="shrink-0"
                         onClick={triggerSync}
-                        disabled={syncing}
-                        title="Sync emails"
+                        disabled={isSyncing}
+                        title={isSyncing ? 'Syncing...' : 'Sync emails'}
                     >
-                        <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
                     </Button>
                 </div>
-                {syncMsg && <p className="text-xs text-muted-foreground text-center">{syncMsg}</p>}
+                {isSyncing && (
+                    <p className="text-xs text-muted-foreground text-center animate-pulse">
+                        Checking for new emails...
+                    </p>
+                )}
 
                 {/* ─── Tabs ───────────────────────────── */}
                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
@@ -124,7 +104,7 @@ export default function InboxPage() {
                 <Card>
                     <CardContent className="p-0">
                         <ScrollArea className="h-[calc(100vh-280px)]">
-                            {isLoading || syncing ? (
+                            {isLoading ? (
                                 <div className="p-4 space-y-4">
                                     {[1, 2, 3, 4, 5].map((i) => (
                                         <div key={i} className="h-20 rounded-lg bg-paper-mid animate-pulse" />

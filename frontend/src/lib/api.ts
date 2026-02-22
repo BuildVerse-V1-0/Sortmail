@@ -16,6 +16,8 @@ export const endpoints = {
     drafts: '/api/drafts',
     waitingFor: '/api/reminders',
     emailSync: '/api/emails/sync',
+    emailSyncStatus: '/api/emails/sync/status',
+
     authMe: '/api/auth/me',
     updateProfile: '/api/auth/users/me',
     notifications: '/api/notifications',
