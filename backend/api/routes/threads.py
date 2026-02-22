@@ -200,17 +200,9 @@ async def get_thread(
     msg_result = await db.execute(msg_stmt)
     messages = msg_result.scalars().all()
     
-    # 3. Fetch Attachments (via Messages)
-    # We can fetch all attachments that belong to these messages
-    # Or strict join. Simplified: fetch all attachments for user matching these message IDs?
-    # Better: join.
-    att_stmt = (
-        select(Attachment)
-        .join(Message, Attachment.message_id == Message.id)
-        .where(Message.thread_id == thread_id)
-    )
-    att_result = await db.execute(att_stmt)
-    attachments = att_result.scalars().all()
+    # 3. Attachments — skip until Attachment model FK is resolved
+    # (Attachment.message_id column doesn't exist in DB; FK points to emails not messages)
+    attachments = []
     
     # 4. Construct Encapsulated Objects
     normalized_messages = [
