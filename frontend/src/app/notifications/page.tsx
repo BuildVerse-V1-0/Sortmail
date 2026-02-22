@@ -97,7 +97,7 @@ export default function NotificationsPage() {
                     <Card className="p-12 text-center text-muted-foreground">
                         <Bell className="h-12 w-12 mx-auto mb-4 opacity-30" />
                         <p className="text-lg font-medium">No notifications</p>
-                        <p className="text-sm">You're all caught up!</p>
+                        <p className="text-sm">You&apos;re all caught up!</p>
                     </Card>
                 ) : (
                     <div className="space-y-2">
