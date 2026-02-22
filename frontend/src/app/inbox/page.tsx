@@ -33,14 +33,16 @@ export default function InboxPage() {
 
     const { data: threads, isLoading, error, refetch } = useThreads(activeTab === 'all' ? undefined : activeTab);
 
-    // Auto-trigger sync when inbox first loads empty (new user or first visit)
-    const hasAutoSynced = React.useRef(false);
+    // Auto-sync at most ONCE per session when inbox is empty
     React.useEffect(() => {
-        if (!isLoading && threads?.length === 0 && !hasAutoSynced.current) {
-            hasAutoSynced.current = true;
-            triggerSync();
-        }
-    }, [isLoading, threads]);
+        if (isLoading) return;
+        if ((threads?.length ?? 0) > 0) return;  // Already have data, skip
+        const key = 'sortmail_autosync_done';
+        if (sessionStorage.getItem(key)) return;  // Already ran this session
+        sessionStorage.setItem(key, '1');
+        triggerSync();
+    }, [isLoading]);  // Only re-run if loading state changes
+
 
     const triggerSync = async () => {
         setSyncing(true);
