@@ -1,6 +1,12 @@
 import axios from 'axios';
 
-const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const RAW_API_URL = (() => {
+    const url = process.env.NEXT_PUBLIC_API_URL;
+    if (!url && process.env.NODE_ENV === 'production') {
+        throw new Error('NEXT_PUBLIC_API_URL must be set in production');
+    }
+    return url || 'http://localhost:8000';
+})();
 const API_URL =
     typeof window !== 'undefined' && window.location.protocol === 'https:'
         ? RAW_API_URL.replace(/^http:\/\//, 'https://')

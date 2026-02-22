@@ -1,12 +1,15 @@
 import axios from 'axios';
 
-const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const RAW_API_URL = (() => {
+    const url = process.env.NEXT_PUBLIC_API_URL;
+    if (!url && process.env.NODE_ENV === 'production') {
+        // Hard error in production — missing env var would silently send to localhost
+        throw new Error('NEXT_PUBLIC_API_URL must be set in production');
+    }
+    return url || 'http://localhost:8000';
+})();
 
-/**
- * Force HTTPS in production.
- * Guards against NEXT_PUBLIC_API_URL being set with http:// in Vercel,
- * which causes Mixed Content errors (HTTPS page → HTTP request blocked).
- */
+// Force HTTPS if page is already on HTTPS (guards against http:// env var)
 const API_URL =
     typeof window !== 'undefined' && window.location.protocol === 'https:'
         ? RAW_API_URL.replace(/^http:\/\//, 'https://')

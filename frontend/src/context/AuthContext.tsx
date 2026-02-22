@@ -14,8 +14,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// API URL from env — force HTTPS in production to prevent Mixed Content errors
-const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sortmail-production.up.railway.app';
+const RAW_API_URL = (() => {
+    const url = process.env.NEXT_PUBLIC_API_URL;
+    if (!url && process.env.NODE_ENV === 'production') {
+        throw new Error('NEXT_PUBLIC_API_URL must be set in production');
+    }
+    return url || 'https://sortmail-production.up.railway.app';
+})();
 const API_URL =
     typeof window !== 'undefined' && window.location.protocol === 'https:'
         ? RAW_API_URL.replace(/^http:\/\//, 'https://')
