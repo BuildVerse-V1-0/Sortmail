@@ -228,12 +228,20 @@ function ThreadRow({ thread, isLast }: { thread: ThreadListItem; isLast: boolean
 }
 
 function formatTime(isoDate: string): string {
-    const date = new Date(isoDate);
+    // Backend sends UTC without 'Z' — append it so JS parses as UTC
+    const normalized = isoDate.endsWith('Z') || isoDate.includes('+') ? isoDate : isoDate + 'Z';
+    const date = new Date(normalized);
     const now = new Date();
     const diffHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
 
+    const tz = 'Asia/Kolkata';
     if (diffHours < 24) {
-        return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: tz });
     }
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (diffHours < 24 * 7) {
+        return date.toLocaleDateString('en-IN', { weekday: 'short', timeZone: tz });
+    }
+    return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', timeZone: tz });
 }
+
+

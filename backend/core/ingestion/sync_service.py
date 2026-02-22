@@ -105,7 +105,7 @@ class IngestionService:
                     user_id=account.user_id,
                     provider=account.provider.value,
                     access_token=access_token,
-                    max_results=20,
+                    max_results=100,
                     client=client
                 )
 
