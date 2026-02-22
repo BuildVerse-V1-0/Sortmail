@@ -35,6 +35,7 @@ app = FastAPI(
     description="AI Intelligence Layer for Gmail & Outlook",
     version=settings.VERSION,
     lifespan=lifespan,
+    redirect_slashes=False,  # Prevents 307 redirects with http:// Location (Railway SSL termination issue)
 )
 
 # CORS
