@@ -33,18 +33,13 @@ function DashboardContent() {
     const { data, isLoading, error } = useDashboard();
 
     useEffect(() => {
-        // Capture token from URL if present (Exchange flow)
+        // Note: Auth is handled by DashboardLayout + AuthContext via HttpOnly cookies.
+        // The old localStorage token check has been removed.
+        // If a 'token' param exists in URL, it's from a legacy flow - clean it up.
         const token = searchParams.get('token');
         if (token) {
-            localStorage.setItem('auth_token', token);
-            // Clear URL
+            // Clear the token from URL (we don't use URL tokens anymore)
             router.replace('/dashboard');
-        } else {
-            // Check if authenticated
-            const storedToken = localStorage.getItem('auth_token');
-            if (!storedToken) {
-                router.push('/login');
-            }
         }
     }, [searchParams, router]);
 
