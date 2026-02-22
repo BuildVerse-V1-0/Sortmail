@@ -223,15 +223,84 @@ async def outlook_callback(code: str):
 
 
 @router.get("/me")
-async def get_current_user(user: User = Depends(get_current_user_dep)):
-    """Get current authenticated user."""
-    return user
+async def get_current_user(
+    user: User = Depends(get_current_user_dep),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get current authenticated user.
+    Returns a normalized UserDTO with credits injected.
+    """
+    from contracts.user import UserDTO
+    from core.credits.credit_service import CreditService
+    from models.user import UserStatus
+
+    # Fetch credit balance (creates record if first time)
+    try:
+        credits_record = await CreditService.get_or_create_user_credits(db, user.id)
+        await db.commit()
+        credits_balance = credits_record.credits_balance
+        plan = credits_record.plan.value if credits_record.plan else "free"
+    except Exception:
+        credits_balance = 0
+        plan = "free"
+
+    return UserDTO(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        picture=user.picture_url,                              # normalize field name
+        provider=user.provider.value if user.provider else "google",
+        is_active=user.status == UserStatus.ACTIVE if user.status else True,
+        is_superuser=user.is_superuser or False,
+        credits=credits_balance,
+        plan=plan,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+    )
 
 
 @router.post("/logout")
 async def logout():
-    """Logout current user."""
-    return {"message": "Logged out"}
+    """Logout current user. Clears the access_token cookie."""
+    from fastapi.responses import JSONResponse
+    response = JSONResponse(content={"message": "Logged out"})
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="none",
+    )
+    return response
+
+
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = None
+    timezone: Optional[str] = None
+    locale: Optional[str] = None
+
+
+@router.patch("/users/me")
+async def update_profile(
+    body: UpdateProfileRequest,
+    user: User = Depends(get_current_user_dep),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update current user's profile (name, timezone, locale)."""
+    if body.name is not None:
+        user.name = body.name
+    if body.timezone is not None:
+        prefs = user.preferences or {}
+        prefs["timezone"] = body.timezone
+        user.preferences = prefs
+    if body.locale is not None:
+        prefs = user.preferences or {}
+        prefs["locale"] = body.locale
+        user.preferences = prefs
+    user.updated_at = datetime.utcnow()
+    await db.commit()
+    return {"updated": True}
 
 
 @router.get("/test-redis")

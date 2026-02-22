@@ -265,3 +265,55 @@ class CreditService:
         # Return new balance
         credits = await CreditService.get_or_create_user_credits(db, user_id)
         return credits.credits_balance
+
+    @staticmethod
+    async def add_credits(
+        db: AsyncSession,
+        user_id: str,
+        amount: int,
+        transaction_type: "TransactionType",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        """
+        Add (or deduct if negative) credits directly — admin use.
+        Uses optimistic locking. Returns new balance.
+        """
+        import uuid as _uuid
+        from models.credits import TransactionStatus
+
+        user_credits = await CreditService.get_or_create_user_credits(db, user_id)
+        current_version = user_credits.version
+        new_balance = user_credits.credits_balance + amount
+
+        stmt = (
+            update(UserCredits)
+            .where(
+                UserCredits.id == user_credits.id,
+                UserCredits.version == current_version
+            )
+            .values(
+                credits_balance=new_balance,
+                credits_total_earned=UserCredits.credits_total_earned + max(0, amount),
+                credits_total_spent=UserCredits.credits_total_spent + max(0, -amount),
+                version=current_version + 1,
+                updated_at=datetime.utcnow(),
+            )
+            .execution_options(synchronize_session="fetch")
+        )
+        result = await db.execute(stmt)
+        if result.rowcount == 0:
+            raise Exception("Concurrent credit update detected, please retry.")
+
+        transaction = CreditTransaction(
+            id=str(_uuid.uuid4()),
+            user_id=user_id,
+            amount=amount,
+            balance_after=new_balance,
+            transaction_type=transaction_type,
+            status=TransactionStatus.COMPLETED,
+            metadata_json=metadata or {},
+        )
+        db.add(transaction)
+        await db.flush()
+        return new_balance
+

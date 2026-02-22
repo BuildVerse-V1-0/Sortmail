@@ -63,6 +63,10 @@ from .dashboard import (
     DashboardStats,
     DashboardData,
 )
+from .user import (
+    UserDTO,
+    UpdateProfileRequest,
+)
 
 # =============================================================================
 # EXPORTS

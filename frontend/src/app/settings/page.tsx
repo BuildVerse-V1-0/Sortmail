@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +10,32 @@ import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { User, Mail, Brain, Palette, Check, Plus, AlertCircle } from 'lucide-react';
+import { User, Mail, Brain, Palette, Check, Plus, AlertCircle, Save } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import AppShell from '@/components/layout/AppShell';
+import { api, endpoints } from '@/lib/api';
 
 export default function SettingsPage() {
-    const { user } = useAuth();
+    const { user, checkSession } = useAuth();
+    const nameRef = useRef<HTMLInputElement>(null);
+    const [saved, setSaved] = useState(false);
+
+    const queryClient = useQueryClient();
+
+    const updateProfile = useMutation({
+        mutationFn: (name: string) =>
+            api.patch(endpoints.updateProfile, { name }),
+        onSuccess: async () => {
+            await checkSession(); // refresh user in AuthContext
+            setSaved(true);
+            setTimeout(() => setSaved(false), 3000);
+        },
+    });
+
+    const handleSave = () => {
+        const name = nameRef.current?.value?.trim();
+        if (name) updateProfile.mutate(name);
+    };
 
     const initials = user?.name
         ? user.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)
@@ -48,15 +69,19 @@ export default function SettingsPage() {
                                 <div className="space-y-4 flex-1 max-w-md">
                                     <div className="grid gap-2">
                                         <Label htmlFor="name">Display Name</Label>
-                                        <Input id="name" defaultValue={user?.name || ""} className="bg-paper" />
+                                        <Input ref={nameRef} id="name" defaultValue={user?.name || ""} className="bg-paper" />
                                     </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="email">Email Address</Label>
                                         <Input id="email" defaultValue={user?.email || ""} disabled className="bg-paper-mid opacity-70" />
                                     </div>
                                 </div>
-                                <div className="ml-auto self-start">
-                                    <Button>Save Changes</Button>
+                                <div className="ml-auto self-start flex items-center gap-2">
+                                    {saved && <span className="text-success text-sm flex items-center gap-1"><Check className="w-4 h-4" /> Saved</span>}
+                                    <Button onClick={handleSave} disabled={updateProfile.isPending} className="gap-2">
+                                        <Save className="w-4 h-4" />
+                                        {updateProfile.isPending ? "Saving..." : "Save Changes"}
+                                    </Button>
                                 </div>
                             </div>
                             <div className="mt-4 flex gap-3 text-xs text-muted-foreground">

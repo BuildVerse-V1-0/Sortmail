@@ -11,13 +11,29 @@ export const api = axios.create({
 });
 
 export const endpoints = {
+    // Core
     dashboard: '/api/dashboard',
     threads: '/api/threads',
     tasks: '/api/tasks',
     drafts: '/api/drafts',
     waitingFor: '/api/reminders',
+    emailSync: '/api/emails/sync',
+    // User
+    authMe: '/api/auth/me',
+    updateProfile: '/api/auth/users/me',
+    // Notifications
     notifications: '/api/notifications',
+    notificationPrefs: '/api/notifications/preferences',
+    // Credits
+    creditsMe: '/api/credits/me',
+    creditsTransactions: '/api/credits/me/transactions',
+    // Contacts & Calendar
     contacts: '/api/threads/contacts',
     calendarSuggestions: '/api/tasks/calendar-suggestions',
-    emailSync: '/api/emails/sync',
+    // Accounts
+    connectedAccounts: '/api/connected-accounts',
+    // Admin
+    adminUsers: '/api/admin/users',
+    adminCreditsAdjust: '/api/admin/credits/adjust',
 };
+
