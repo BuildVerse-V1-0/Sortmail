@@ -1,93 +1,86 @@
 """
-Entity Extractor
-----------------
-Extracts named entities from email content.
+Entity Extractor Module
+------------------------
+Extracts people, companies, dates, and amounts from the Gemini intel JSON.
+
+Architecture: pure extractor — no LLM calls. Normalizes Gemini's entities
+              output into clean, deduplicated lists.
 """
 
-import re
-from typing import List
 
-from contracts import EmailThreadV1, ExtractedEntity
-
-
-# Email pattern
-EMAIL_PATTERN = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-
-# Money pattern
-MONEY_PATTERN = r"\$[\d,]+(?:\.\d{2})?[KMB]?|\d+(?:,\d{3})*(?:\.\d{2})?\s*(?:USD|EUR|dollars)"
-
-# Phone pattern
-PHONE_PATTERN = r"\+?1?[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}"
-
-
-async def extract_entities(
-    thread: EmailThreadV1,
-    model: str = "gemini-1.5-pro",
-) -> List[ExtractedEntity]:
+def extract_entities(intel_json: dict) -> dict:
     """
-    Extract named entities from email thread.
-    
-    Args:
-        thread: EmailThreadV1 to analyze
-        model: LLM model (for future use)
-        
+    Extract and deduplicate named entities from Gemini intel output.
+
     Returns:
-        List of ExtractedEntity objects
+        {
+            "people": [...],
+            "companies": [...],
+            "dates": [...],
+            "amounts": [...],
+        }
     """
-    entities = []
-    
-    # Combine all message content
-    all_text = " ".join(msg.body_text for msg in thread.messages)
-    all_text += f" {thread.subject}"
-    
-    # Extract different entity types
-    entities.extend(_extract_emails(all_text))
-    entities.extend(_extract_money(all_text))
-    entities.extend(_extract_phones(all_text))
-    
-    # TODO: Use LLM for more sophisticated entity extraction
-    # - People names
-    # - Company names
-    # - Dates
-    # - Project names
-    
-    return entities
+    raw = intel_json.get("entities") or {}
+    if not isinstance(raw, dict):
+        return _empty_entities()
+
+    return {
+        "people": _clean_list(raw.get("people")),
+        "companies": _clean_list(raw.get("companies")),
+        "dates": _clean_list(raw.get("dates")),
+        "amounts": _clean_list(raw.get("amounts")),
+    }
 
 
-def _extract_emails(text: str) -> List[ExtractedEntity]:
-    """Extract email addresses."""
-    matches = re.findall(EMAIL_PATTERN, text)
-    return [
-        ExtractedEntity(
-            entity_type="email",
-            value=email,
-            confidence=0.95,
-        )
-        for email in set(matches)
-    ]
+def extract_people(intel_json: dict) -> list[str]:
+    """Convenience: just the people list."""
+    return extract_entities(intel_json)["people"]
 
 
-def _extract_money(text: str) -> List[ExtractedEntity]:
-    """Extract monetary amounts."""
-    matches = re.findall(MONEY_PATTERN, text, re.IGNORECASE)
-    return [
-        ExtractedEntity(
-            entity_type="amount",
-            value=amount.strip(),
-            confidence=0.90,
-        )
-        for amount in set(matches)
-    ]
+def extract_action_items(intel_json: dict) -> list[dict]:
+    """
+    Extract and validate action items from Gemini intel output.
+
+    Returns list of dicts with keys: title, description, due_date, priority.
+    Skips items without a title.
+    """
+    raw = intel_json.get("action_items") or []
+    valid = []
+
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        title = (item.get("title") or "").strip()
+        if not title:
+            continue
+
+        priority = (item.get("priority") or "medium").lower()
+        if priority not in ("urgent", "high", "medium", "low"):
+            priority = "medium"
+
+        valid.append({
+            "title": title[:255],
+            "description": (item.get("description") or "").strip() or None,
+            "due_date": item.get("due_date"),  # raw string, pipeline parses
+            "priority": priority,
+        })
+
+    return valid
 
 
-def _extract_phones(text: str) -> List[ExtractedEntity]:
-    """Extract phone numbers."""
-    matches = re.findall(PHONE_PATTERN, text)
-    return [
-        ExtractedEntity(
-            entity_type="phone",
-            value=phone,
-            confidence=0.85,
-        )
-        for phone in set(matches)
-    ]
+def _clean_list(raw) -> list[str]:
+    """Deduplicate and clean a list of strings."""
+    if not raw or not isinstance(raw, list):
+        return []
+    seen = set()
+    result = []
+    for item in raw:
+        s = str(item).strip()
+        if s and s.lower() not in seen:
+            seen.add(s.lower())
+            result.append(s)
+    return result[:20]  # Cap at 20 per category
+
+
+def _empty_entities() -> dict:
+    return {"people": [], "companies": [], "dates": [], "amounts": []}

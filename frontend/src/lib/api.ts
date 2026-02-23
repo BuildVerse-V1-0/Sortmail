@@ -17,7 +17,7 @@ export const endpoints = {
     waitingFor: '/api/reminders',
     emailSync: '/api/emails/sync',
     emailSyncStatus: '/api/emails/sync/status',
-
+    eventStream: '/api/events/stream',
     authMe: '/api/auth/me',
     updateProfile: '/api/auth/users/me',
     notifications: '/api/notifications',

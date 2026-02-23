@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import AppShell from '@/components/layout/AppShell';
 import { useThreads } from '@/hooks/useThreads';
 import { useSmartSync } from '@/hooks/useSmartSync';
+import { useRealtimeEvents } from '@/hooks/useRealtimeEvents';
 import {
     Search,
     RefreshCw,
@@ -31,6 +32,9 @@ export default function InboxPage() {
 
     // Smart background sync: checks if stale → incremental Gmail sync → invalidates cache
     const { syncState, triggerSync } = useSmartSync();
+
+    // Real-time SSE: auto-refresh when backend publishes intel_ready / new_emails
+    useRealtimeEvents();
 
     const isSyncing = syncState === 'syncing' || syncState === 'checking';
 

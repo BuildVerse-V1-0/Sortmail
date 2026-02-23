@@ -243,3 +243,21 @@ class IngestionService:
                 att.storage_path = storage_path
         
         await self.db.commit()
+
+        # Trigger AI intelligence pipeline in background (non-blocking)
+        import asyncio
+        asyncio.create_task(
+            _run_intel_safe(thread.id, user_id, self.db)
+        )
+
+
+async def _run_intel_safe(thread_id: str, user_id: str, db):
+    """Run intelligence pipeline with its own DB session to avoid conflicts."""
+    try:
+        from core.storage.database import async_session_factory
+        from core.intelligence.pipeline import process_thread_intelligence
+        async with async_session_factory() as session:
+            await process_thread_intelligence(thread_id, user_id, session)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Background intel failed for {thread_id}: {e}")
