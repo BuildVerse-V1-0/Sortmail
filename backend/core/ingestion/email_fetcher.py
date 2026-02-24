@@ -86,6 +86,9 @@ async def fetch_incremental_changes(
         except TokenRevokedError:
             raise # Propagate specific auth errors
         except Exception as e:
+            if "404" in str(e) and "notFound" in str(e):
+                logger.warning(f"Incremental thread {thread_id} not found (404). Probably deleted. Skipping.")
+                continue
             logger.error(f"Error processing incremental thread {thread_id}: {e}")
             continue
 
@@ -128,6 +131,9 @@ async def _fetch_gmail_threads(
         except TokenRevokedError:
             raise
         except Exception as e:
+            if "404" in str(e) and "notFound" in str(e):
+                logger.warning(f"Thread {thread_meta.get('id')} not found (404). Probably deleted. Skipping.")
+                continue
             logger.error(f"Error processing thread {thread_meta.get('id')}: {e}")
             continue
             
@@ -167,6 +173,24 @@ def _parse_gmail_message(msg_resource: dict) -> Tuple[dict, List[dict]]:
     # Extract headers efficiently
     header_map = {h['name'].lower(): h['value'] for h in headers}
     
+    # 1. Fallback Strategy for Missing "From" Field (Automated Newsletters/System emails)
+    from_address = header_map.get('from', '').strip()
+    if not from_address:
+        # Try finding the designated sender alias
+        from_address = header_map.get('sender', '').strip()
+    if not from_address:
+        # Try finding the envelope return path (usually contains the raw sender logic)
+        from_address = header_map.get('return-path', '').strip()
+    if not from_address:
+         # Try finding Reply-To
+         from_address = header_map.get('reply-to', '').strip()
+    
+    # If it is still brutally empty, we log it and assign a strict internal fallback 
+    # so we don't violate PostgreSQL NOT NULL constraints downstream.
+    if not from_address:
+        logger.warning(f"Message {msg_resource.get('id')} has no discernible sender headers. Using system fallback.")
+        from_address = "unknown-sender@sortmail.internal"
+
     # Extract body with enhanced MIME recursion
     body_text = _extract_body(payload)
     
@@ -176,7 +200,7 @@ def _parse_gmail_message(msg_resource: dict) -> Tuple[dict, List[dict]]:
     parsed_msg = {
         'id': msg_resource.get('id'),
         'threadId': msg_resource.get('threadId'),
-        'from': header_map.get('from', ''),
+        'from': from_address,
         'to': [addr.strip() for addr in header_map.get('to', '').split(',') if addr.strip()],
         'cc': [addr.strip() for addr in header_map.get('cc', '').split(',') if addr.strip()],
         'subject': header_map.get('subject', ''),
