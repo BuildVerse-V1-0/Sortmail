@@ -120,14 +120,14 @@ class IngestionService:
             
             # Fallback or Full Sync
             # We ONLY do a full sync if we deliberately wiped last_history_id above, OR if it never existed.
-            # If incremental succeeded but returned 0 threads, we skip full sync so we don't spam Gmail.
-            if not account.last_history_id:
-                logger.info(f"Performing full sync for {account.id}")
+            # If incremental succeeded but returned 0 threads, we force a full sync anyway to catch missed webhooks/emails.
+            if not threads:
+                logger.info(f"Incremental returned 0 threads (or no history ID existed). Forcing full sync for {account.id} to catch missed emails.")
                 threads = await fetch_threads(
                     user_id=account.user_id,
                     provider=account.provider.value,
                     access_token=access_token,
-                    max_results=100,
+                    max_results=50, # Get the last 50 emails just to be sure
                     client=client
                 )
 
