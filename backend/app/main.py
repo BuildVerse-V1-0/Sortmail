@@ -48,6 +48,13 @@ origins = settings.CORS_ORIGINS
 if isinstance(origins, str):
     origins = [o.strip() for o in origins.split(",")]
 
+# Local Development Support
+if settings.ENVIRONMENT.lower() == "development":
+    if "http://localhost:3000" not in origins:
+        origins.append("http://localhost:3000")
+    if "http://127.0.0.1:3000" not in origins:
+        origins.append("http://127.0.0.1:3000")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -109,7 +116,7 @@ async def health():
 # Import and include routers
 from api.routes import (
     auth, emails, threads, tasks, drafts, reminders,
-    dashboard, admin_credits, notifications, credits, accounts, admin_users, events
+    dashboard, admin_credits, notifications, credits, accounts, admin_users, events, webhooks
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
@@ -125,4 +132,5 @@ app.include_router(credits.router, prefix="/api/credits", tags=["credits"])
 app.include_router(accounts.router, prefix="/api/connected-accounts", tags=["accounts"])
 app.include_router(admin_users.router, prefix="/api/admin", tags=["admin"])
 app.include_router(events.router, prefix="/api/events", tags=["events"])
+app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
 

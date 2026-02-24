@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str # Required
     
+    # Google Cloud Pub/Sub
+    GOOGLE_PUBSUB_TOPIC_NAME: str = "" # Expected format: projects/{project}/topics/{topic}
+    
     # OAuth - Microsoft
     MICROSOFT_CLIENT_ID: str = ""
     MICROSOFT_CLIENT_SECRET: str = ""

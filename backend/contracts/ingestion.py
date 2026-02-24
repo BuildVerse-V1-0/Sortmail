@@ -21,6 +21,10 @@ class AttachmentRef(BaseModel):
     attachment_id: str = Field(
         description="Internal UUID for this attachment"
     )
+    message_id: str = Field(
+        default="",
+        description="ID of the message this attachment belongs to (msg-{provider_id})"
+    )
     filename: str = Field(
         description="Smart/contextual filename (e.g., Contract_ClientA_2026.pdf)"
     )
@@ -31,6 +35,7 @@ class AttachmentRef(BaseModel):
         description="MIME type (e.g., application/pdf)"
     )
     storage_path: str = Field(
+        default="",
         description="Path where file is stored (local or cloud)"
     )
     size_bytes: int = Field(

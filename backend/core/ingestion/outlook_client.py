@@ -6,6 +6,9 @@ Low-level client for Microsoft Graph API (Outlook).
 
 from typing import List, Optional
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class OutlookClient:
@@ -21,20 +24,13 @@ class OutlookClient:
         skip: int = 0,
     ) -> dict:
         """List email conversations."""
-        # TODO: Implement using httpx
-        # async with httpx.AsyncClient() as client:
-        #     response = await client.get(
-        #         f"{self._base_url}/me/mailFolders/inbox/messages",
-        #         headers={"Authorization": f"Bearer {self.access_token}"},
-        #         params={"$top": max_results, "$skip": skip},
-        #     )
-        #     return response.json()
-        raise NotImplementedError("Implement Outlook conversation listing")
+        logger.warning("Microsoft Graph API / Outlook sync is not yet implemented.")
+        return {"value": []}
     
     async def get_message(self, message_id: str) -> dict:
         """Get a single message with details."""
-        # TODO: Implement
-        raise NotImplementedError("Implement Outlook message fetch")
+        logger.warning("Microsoft Graph API / Outlook message fetch is not yet implemented.")
+        return {}
     
     async def get_attachment(
         self,
@@ -42,8 +38,8 @@ class OutlookClient:
         attachment_id: str,
     ) -> bytes:
         """Download an attachment."""
-        # TODO: Implement
-        raise NotImplementedError("Implement Outlook attachment download")
+        logger.warning("Microsoft Graph API / Outlook attachment download is not yet implemented.")
+        return b""
     
     async def create_draft(
         self,
@@ -53,5 +49,5 @@ class OutlookClient:
         conversation_id: Optional[str] = None,
     ) -> str:
         """Create a draft email."""
-        # TODO: Implement
-        raise NotImplementedError("Implement Outlook draft creation")
+        logger.warning("Microsoft Graph API / Outlook draft creation is not yet implemented.")
+        return ""

@@ -196,12 +196,14 @@ async def google_callback(
     
     # Cookie Configuration for Cross-Domain (Vercel <-> Railway)
     # Using 'Lax' breaks cross-site if domains differ. 'None' requires Secure=True.
+    is_development = settings.ENVIRONMENT.lower() == "development"
+    
     response.set_cookie(
         key="access_token",
         value=token_pair.access_token,
         httponly=True,
-        secure=True, # Required for SameSite=None
-        samesite="None", # Allow cross-site cookie
+        secure=False if is_development else True, # False for local http
+        samesite="lax" if is_development else "none", # Lax for localhost, None for cross-site prod
         max_age=60 * 60 * 24 * 7, # 7 days (or match token expiry)
         path="/"
     )
@@ -264,13 +266,17 @@ async def get_current_user(
 async def logout():
     """Logout current user. Clears the access_token cookie."""
     from fastapi.responses import JSONResponse
+    from app.config import settings
+    
     response = JSONResponse(content={"message": "Logged out"})
+    is_development = settings.ENVIRONMENT.lower() == "development"
+    
     response.delete_cookie(
         key="access_token",
         path="/",
-        secure=True,
+        secure=False if is_development else True,
         httponly=True,
-        samesite="none",
+        samesite="lax" if is_development else "none",
     )
     return response
 

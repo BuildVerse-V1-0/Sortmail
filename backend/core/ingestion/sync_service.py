@@ -10,7 +10,8 @@ from datetime import datetime
 import logging
 
 from contracts import EmailThreadV1
-from models.thread import Thread, Message
+from models.thread import Thread
+from models.email import Email
 from models.attachment import Attachment
 from models.connected_account import ConnectedAccount, ProviderType
 from core.ingestion.email_fetcher import fetch_threads
@@ -50,7 +51,8 @@ class IngestionService:
         
         # 0. Check State
         # If stuck in syncing for > 1 hour, assume failed and reset (simple recovery)
-        if account.sync_status == "syncing":
+        from models.connected_account import SyncStatus
+        if account.sync_status == SyncStatus.SYNCING:
              if account.last_sync_at and (datetime.utcnow() - account.last_sync_at).total_seconds() < 3600:
                  logger.info(f"Account {account.id} is already syncing. Skipping.")
                  return
@@ -116,10 +118,20 @@ class IngestionService:
                 logger.info(f"Synced {len(threads)} threads for account {account.id}")
 
             # 6. Success State
-            account.sync_status = "idle"
+            account.sync_status = SyncStatus.IDLE
+            account.initial_sync_done = True
             account.last_history_id = current_history_id
             account.last_sync_at = datetime.utcnow()
             await self.db.commit()
+
+            # 7. Setup Real-time Webhooks (if configured)
+            from app.config import settings
+            if account.provider == ProviderType.GMAIL and settings.GOOGLE_PUBSUB_TOPIC_NAME:
+                try:
+                    await client.watch(settings.GOOGLE_PUBSUB_TOPIC_NAME)
+                    logger.info(f"Subscribed account {account.id} to Pub/Sub topic '{settings.GOOGLE_PUBSUB_TOPIC_NAME}'")
+                except Exception as e:
+                    logger.warning(f"Failed to subscribe account {account.id} to Pub/Sub: {e}")
 
         except TokenRevokedError:
             logger.error(f"Token revoked for account {account.id}")
@@ -129,7 +141,7 @@ class IngestionService:
             
         except Exception as e:
             logger.error(f"Sync failed for account {account.id}: {e}")
-            account.sync_status = "failed"
+            account.sync_status = SyncStatus.FAILED
             account.sync_error = str(e)
             await self.db.commit()
 
@@ -168,26 +180,35 @@ class IngestionService:
         thread.is_starred = contract.is_starred
         thread.has_attachments = len(contract.attachments) > 0
         
-        # 3b. Upsert Messages
+        # 3b. Upsert Emails (canonical schema uses `emails` table)
         for msg_contract in contract.messages:
-            msg_stmt = select(Message).where(
-                Message.thread_id == thread.id,
-                Message.id == msg_contract.message_id
+            msg_stmt = select(Email).where(
+                Email.thread_id == thread.id,
+                Email.external_id == msg_contract.message_id
             )
             result = await self.db.execute(msg_stmt)
             msg = result.scalars().first()
 
             if not msg:
-                msg = Message(
-                    id=msg_contract.message_id,
+                # Format recipients jsonb correctly
+                recipients = []
+                for email in msg_contract.to_addresses:
+                    recipients.append({"email": email, "type": "to"})
+                for email in msg_contract.cc_addresses:
+                    recipients.append({"email": email, "type": "cc"})
+                
+                msg = Email(
+                    id=msg_contract.message_id,  # internal mapped ID
                     thread_id=thread.id,
-                    from_address=msg_contract.from_address,
-                    to_addresses=msg_contract.to_addresses,
-                    cc_addresses=msg_contract.cc_addresses,
+                    user_id=user_id,
+                    external_id=msg_contract.message_id,
+                    sender=msg_contract.from_address,
+                    recipients=recipients,
                     subject=msg_contract.subject,
-                    body_text=msg_contract.body_text,
-                    is_from_user=str(msg_contract.is_from_user).lower(), 
-                    sent_at=msg_contract.sent_at,
+                    body_plain=msg_contract.body_text,
+                    is_from_user=msg_contract.is_from_user, 
+                    received_at=msg_contract.sent_at,
+                    has_attachments=len(contract.attachments) > 0,
                     created_at=datetime.utcnow()
                 )
                 self.db.add(msg)
@@ -227,15 +248,20 @@ class IngestionService:
                     logger.error(f"Failed to download attachment {att_contract.attachment_id}: {e}")
 
             if not att:
+                # Make sure to import StorageProvider and AttachmentStatus if not already
+                from models.attachment import StorageProvider, AttachmentStatus
+                
                 att = Attachment(
                     id=att_contract.attachment_id,
-                    message_id=att_contract.message_id,
+                    email_id=att_contract.message_id,  # Map message_id to email_id
                     user_id=user_id,
-                    filename=att_contract.filename,
-                    original_filename=att_contract.original_filename,
-                    mime_type=att_contract.mime_type,
+                    filename=att_contract.original_filename,
+                    filename_sanitized=att_contract.filename,
+                    content_type=att_contract.mime_type,
                     size_bytes=att_contract.size_bytes,
-                    storage_path=storage_path, # UPDATED
+                    storage_path=storage_path,
+                    storage_provider=StorageProvider.S3, # Default/local for now
+                    status=AttachmentStatus.PENDING,
                     created_at=datetime.utcnow()
                 )
                 self.db.add(att)
@@ -246,9 +272,17 @@ class IngestionService:
 
         # Trigger AI intelligence pipeline in background (non-blocking)
         import asyncio
-        asyncio.create_task(
-            _run_intel_safe(thread.id, user_id, self.db)
-        )
+        import logging
+        try:
+            # Check if there is a running event loop to attach the task to
+            loop = asyncio.get_running_loop()
+            loop.create_task(
+                _run_intel_safe(thread.id, user_id, self.db)
+            )
+        except RuntimeError:
+            logging.getLogger(__name__).warning(
+                f"No running event loop found to trigger background intel for thread {thread.id}"
+            )
 
 
 async def _run_intel_safe(thread_id: str, user_id: str, db):

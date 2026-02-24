@@ -159,6 +159,21 @@ class GmailClient:
             )
         )
 
+    async def watch(self, topic_name: str) -> dict:
+        """Subscribe to real-time push notifications via Cloud Pub/Sub."""
+        return await self._execute(
+            lambda: self._service.users().watch(
+                userId='me',
+                body={'topicName': topic_name}
+            )
+        )
+
+    async def stop(self) -> None:
+        """Stop real-time push notifications."""
+        return await self._execute(
+            lambda: self._service.users().stop(userId='me')
+        )
+
     async def create_draft(
         self,
         to: str,

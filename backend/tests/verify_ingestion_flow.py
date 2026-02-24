@@ -33,6 +33,11 @@ os.environ["STORAGE_PATH"] = "./data/attachments/test" # Test storage path
 os.environ["DATABASE_URL"] = "postgresql+asyncpg://user:pass@localhost:5432/db" # Dummy for config
 os.environ["SECRET_KEY"] = "dummy-secret-key-for-testing"
 os.environ["ALGORITHM"] = "HS256"
+os.environ["FRONTEND_URL"] = "http://localhost:3000"
+os.environ["REDIS_URL"] = "redis://localhost:6379"
+os.environ["GOOGLE_REDIRECT_URI"] = "http://localhost:8000/auth/google/callback"
+os.environ["MICROSOFT_REDIRECT_URI"] = "http://localhost:8000/auth/microsoft/callback"
+os.environ["JWT_SECRET"] = "dummy-jwt-secret"
 
 try:
     print("Importing models.connected_account...")
@@ -44,8 +49,9 @@ try:
     from core.ingestion.sync_service import IngestionService
     print("Importing GmailClient...")
     from core.ingestion.gmail_client import GmailClient
-    print("Importing Thread, Message...")
-    from models.thread import Thread, Message
+    print("Importing Thread, Email...")
+    from models.thread import Thread
+    from models.email import Email
     print("Importing Attachment...")
     from models.attachment import Attachment
     print("Importing User...")
@@ -181,19 +187,19 @@ async def verify_ingestion_flow():
         
         for call in mock_db.add.call_args_list:
             arg = call[0][0] # First arg of call
-            if isinstance(arg, Message):
+            if isinstance(arg, Email):
                 message_saved = True
-                print(f"Inspecting Saved Message Body: {arg.body_text}")
+                print(f"Inspecting Saved Email Body: {arg.body_plain}")
                 
                 # Check Sanitization
-                if "<script>" not in arg.body_text and "<h1>Safe Title</h1>" in arg.body_text:
+                if "<script>" not in arg.body_plain and "<h1>Safe Title</h1>" in arg.body_plain:
                      sanitization_successful = True
                      print("Sanitization Verified: Script tag removed.")
                 else:
                      print("Sanitization Failed! Script tag present.")
                      
         if not message_saved:
-            print("No Message object saved to DB.")
+            print("No Email object saved to DB.")
 
         assert message_saved
         assert sanitization_successful

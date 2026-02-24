@@ -2,10 +2,12 @@
 Attachment Extractor
 --------------------
 Extracts and stores attachments from emails.
+Async-safe: uses aiofiles for all I/O.
 """
 
 import os
-from typing import List, Tuple
+import aiofiles
+from typing import List
 from datetime import datetime
 
 from app.config import settings
@@ -38,7 +40,10 @@ async def extract_attachments(
             att.get("content_type", "application/octet-stream"),
         )
         
-        # Store file
+        # Store file — expects (user_id, filename, data)
+        # Here we use attachment_id as user_id placeholder since we don't
+        # have user_id in this legacy interface. Use sync_service flow for
+        # proper user-scoped storage.
         storage_path = await _store_attachment(
             attachment_id,
             smart_filename,
@@ -47,6 +52,7 @@ async def extract_attachments(
         
         results.append(AttachmentRef(
             attachment_id=attachment_id,
+            message_id=att.get("message_id", ""),
             filename=smart_filename,
             original_filename=original_filename,
             mime_type=att.get("content_type", "application/octet-stream"),
@@ -71,18 +77,32 @@ def _generate_smart_filename(original: str, mime_type: str) -> str:
 
 
 async def _store_attachment(
-    attachment_id: str,
+    user_id: str,
     filename: str,
     data: bytes,
 ) -> str:
-    """Store attachment to configured storage."""
-    storage_dir = settings.STORAGE_PATH
+    """
+    Store attachment to configured storage directory.
+
+    Args:
+        user_id: User ID — used to create a per-user subdirectory for isolation.
+        filename: Filename to save the file as (should already be sanitized).
+        data: Raw bytes to write.
+
+    Returns:
+        Absolute path where file was stored.
+    """
+    # Per-user directory for isolation
+    storage_dir = os.path.join(settings.STORAGE_PATH, str(user_id))
     os.makedirs(storage_dir, exist_ok=True)
     
-    file_path = os.path.join(storage_dir, f"{attachment_id}_{filename}")
+    # Sanitize filename (strip path separators to prevent directory traversal)
+    safe_filename = os.path.basename(filename)
+    file_path = os.path.join(storage_dir, safe_filename)
     
-    with open(file_path, "wb") as f:
-        f.write(data)
+    # Async write
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(data)
     
     return file_path
 
