@@ -197,6 +197,27 @@ def _parse_gmail_message(msg_resource: dict) -> Tuple[dict, List[dict]]:
     # Extract attachments with size limits
     attachments = _extract_attachments_metadata(payload, msg_resource.get('id'))
     
+    from email.utils import parsedate_to_datetime
+    from datetime import timezone
+    
+    # 2. Extract Dates defensively
+    date_raw = header_map.get('date', '').strip()
+    sent_at = None
+    if date_raw:
+        try:
+            sent_at = parsedate_to_datetime(date_raw)
+            # Ensure it's naive UTC for our DB
+            if sent_at.tzinfo is not None:
+                sent_at = sent_at.astimezone(timezone.utc).replace(tzinfo=None)
+        except Exception:
+            pass
+            
+    # internalDate is always when Gmail received the email
+    received_at = datetime.fromtimestamp(int(msg_resource.get('internalDate', 0)) / 1000)
+    
+    if not sent_at:
+        sent_at = received_at
+    
     parsed_msg = {
         'id': msg_resource.get('id'),
         'threadId': msg_resource.get('threadId'),
@@ -205,7 +226,8 @@ def _parse_gmail_message(msg_resource: dict) -> Tuple[dict, List[dict]]:
         'cc': [addr.strip() for addr in header_map.get('cc', '').split(',') if addr.strip()],
         'subject': header_map.get('subject', ''),
         'body_text': body_text,
-        'sent_at': datetime.fromtimestamp(int(msg_resource.get('internalDate', 0)) / 1000),
+        'sent_at': sent_at,
+        'received_at': received_at,
         'is_from_user': 'SENT' in msg_resource.get('labelIds', []),
         'labels': msg_resource.get('labelIds', []),
     }
@@ -320,6 +342,7 @@ def normalize_email_thread(
             subject=m.get("subject", subject),
             body_text=m.get("body_text", ""),
             sent_at=m.get("sent_at", datetime.utcnow()),
+            received_at=m.get("received_at", datetime.utcnow()),
             is_from_user=m.get("is_from_user", False),
             labels=m.get("labels", []),
         )

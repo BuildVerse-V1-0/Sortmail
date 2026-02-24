@@ -70,6 +70,9 @@ class EmailMessage(BaseModel):
     sent_at: datetime = Field(
         description="When the email was sent"
     )
+    received_at: datetime = Field(
+        description="When the email was received by the provider"
+    )
     is_from_user: bool = Field(
         default=False,
         description="True if this message was sent by the connected user"

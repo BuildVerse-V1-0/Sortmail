@@ -158,10 +158,16 @@ class IngestionService:
             await self.db.commit()
             
         except Exception as e:
+            await self.db.rollback()
             logger.error(f"Sync failed for account {account.id}: {e}")
             account.sync_status = SyncStatus.FAILED
             account.sync_error = str(e)
             await self.db.commit()
+        finally:
+            if account.sync_status == SyncStatus.SYNCING:
+                account.sync_status = SyncStatus.FAILED
+                account.sync_error = "Unknown error occurred"
+                await self.db.commit()
 
 
     async def _save_thread(self, user_id: str, contract: EmailThreadV1, client=None):
@@ -200,37 +206,42 @@ class IngestionService:
         
         # 3b. Upsert Emails (canonical schema uses `emails` table)
         for msg_contract in contract.messages:
-            msg_stmt = select(Email).where(
-                Email.thread_id == thread.id,
-                Email.external_id == msg_contract.message_id
-            )
-            result = await self.db.execute(msg_stmt)
-            msg = result.scalars().first()
+            try:
+                # Use a savepoint so a single bad email doesn't poison the whole transaction
+                async with self.db.begin_nested():
+                    msg_stmt = select(Email).where(
+                        Email.thread_id == thread.id,
+                        Email.external_id == msg_contract.message_id
+                    )
+                    result = await self.db.execute(msg_stmt)
+                    msg = result.scalars().first()
 
-            if not msg:
-                # Format recipients jsonb correctly
-                recipients = []
-                for email in msg_contract.to_addresses:
-                    recipients.append({"email": email, "type": "to"})
-                for email in msg_contract.cc_addresses:
-                    recipients.append({"email": email, "type": "cc"})
-                
-                msg = Email(
-                    id=msg_contract.message_id,  # internal mapped ID
-                    thread_id=thread.id,
-                    user_id=user_id,
-                    external_id=msg_contract.message_id,
-                    sender=msg_contract.from_address,
-                    recipients=recipients,
-                    subject=msg_contract.subject,
-                    body_plain=msg_contract.body_text,
-                    is_from_user=msg_contract.is_from_user, 
-                    received_at=msg_contract.sent_at,
-                    has_attachments=len(contract.attachments) > 0,
-                    created_at=datetime.utcnow()
-                )
-                self.db.add(msg)
-                await self.db.flush() 
+                    if not msg:
+                        # Format recipients jsonb correctly
+                        recipients = []
+                        for email in msg_contract.to_addresses:
+                            recipients.append({"email": email, "type": "to"})
+                        for email in msg_contract.cc_addresses:
+                            recipients.append({"email": email, "type": "cc"})
+                        
+                        msg = Email(
+                            id=msg_contract.message_id,  # internal mapped ID
+                            thread_id=thread.id,
+                            user_id=user_id,
+                            external_id=msg_contract.message_id,
+                            sender=msg_contract.from_address,
+                            recipients=recipients,
+                            subject=msg_contract.subject,
+                            body_plain=msg_contract.body_text,
+                            is_from_user=msg_contract.is_from_user, 
+                            sent_at=msg_contract.sent_at,
+                            received_at=msg_contract.received_at, # Using correct mapping
+                            has_attachments=len(contract.attachments) > 0,
+                            created_at=datetime.utcnow()
+                        )
+                        self.db.add(msg)
+            except Exception as e:
+                logger.warning(f"Skipping malformed email {msg_contract.message_id} in thread {thread.id}: {e}")
 
         # 3c. Upsert Attachments
         from core.ingestion.attachment_extractor import _store_attachment
