@@ -150,7 +150,12 @@ class GmailClient:
         file_data = base64.urlsafe_b64decode(attachment['data'].encode('UTF-8'))
         return file_data
     
-    async def get_history(self, start_history_id: str, history_types: Optional[List[str]] = None) -> dict:
+    async def get_history(
+        self, 
+        start_history_id: str, 
+        history_types: Optional[List[str]] = None,
+        page_token: Optional[str] = None
+    ) -> dict:
         """Get history of changes since start_history_id."""
         kwargs = {
             'userId': 'me',
@@ -158,6 +163,8 @@ class GmailClient:
         }
         if history_types:
             kwargs['historyTypes'] = history_types
+        if page_token:
+            kwargs['pageToken'] = page_token
             
         return await self._execute(
             lambda: self._service.users().history().list(**kwargs)
