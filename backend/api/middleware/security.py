@@ -26,9 +26,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         
         # HSTS (1 year)
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        
-        # XSS Protection
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+
         
         # No Sniff
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -56,19 +54,25 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path == "/health" or request.method == "OPTIONS":
             return await call_next(request)
             
-        client_ip = request.client.host
+        client_ip = request.client.host if request.client else "127.0.0.1"
         key = f"rate_limit:{client_ip}"
         
         try:
             # Increment count
-            # Pipeline: INCR, EXPIRE
             async with redis_client.pipeline(transaction=True) as pipe:
-                current = await (pipe.incr(key).expire(key, self.WINDOW, nx=True).execute()) # nx=True only set expire if not exists
+                pipe.incr(key)
+                # We can safely call expire every time, or conditionally
+                pipe.expire(key, self.WINDOW)
+                results = await pipe.execute()
                 
-            count = current[0]
+            count = results[0]
             
             if count > self.RATE_LIMIT:
-                return Response("Rate limit exceeded", status_code=429)
+                return Response(
+                    "Rate limit exceeded", 
+                    status_code=429,
+                    headers={"Retry-After": str(self.WINDOW)}
+                )
                 
             response = await call_next(request)
             

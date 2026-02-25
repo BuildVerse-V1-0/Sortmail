@@ -4,7 +4,8 @@ Thread Model
 SQLAlchemy model for email threads.
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Boolean, Enum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 import enum
@@ -21,7 +22,7 @@ class IntelStatus(str, enum.Enum):
 class Thread(Base):
     __tablename__ = "threads"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     external_id = Column(String, nullable=False)  # Provider's thread ID
     
@@ -31,7 +32,7 @@ class Thread(Base):
     provider = Column(String, nullable=False)  # "gmail" or "outlook"
     
     # Meta
-    labels = Column(ARRAY(String), default=[]) # e.g. ["INBOX", "UNREAD", "IMPORTANT"]
+    labels = Column(ARRAY(String), default=list) # e.g. ["INBOX", "UNREAD", "IMPORTANT"]
     is_unread = Column(Integer, default=0) # 0=read, 1=unread (using int for bool compat if needed, or Boolean)
     is_starred = Column(Boolean, default=False)
     has_attachments = Column(Boolean, default=False)
@@ -46,13 +47,13 @@ class Thread(Base):
     last_email_at = Column(DateTime)
     last_synced_at = Column(DateTime)
     intel_generated_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Message(Base):
     __tablename__ = "messages"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     thread_id = Column(String, ForeignKey("threads.id"), nullable=False, index=True)
     
     # Message data
@@ -67,4 +68,4 @@ class Message(Base):
     sent_at = Column(DateTime, nullable=False)
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

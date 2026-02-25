@@ -4,7 +4,8 @@ Jobs & Queues Models
 SQLAlchemy models for background jobs and scheduled tasks (Module 15).
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -24,12 +25,12 @@ class JobStatus(str, enum.Enum):
 class Job(Base):
     __tablename__ = "job_queue"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     job_type = Column(String(100), nullable=False)
     priority = Column(Integer, default=5) # 1=Highest, 10=Lowest
     
     payload = Column(JSONB, nullable=False)
-    status = Column(Enum(JobStatus), default=JobStatus.PENDING)
+    status = Column(Enum(JobStatus), default=JobStatus.PENDING, nullable=False)
     
     attempts = Column(Integer, default=0)
     max_attempts = Column(Integer, default=3)
@@ -45,8 +46,8 @@ class Job(Base):
     
     scheduled_for = Column(DateTime, nullable=True) # Delayed jobs
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed via migration
@@ -56,7 +57,7 @@ class Job(Base):
 class ScheduledJob(Base):
     __tablename__ = "scheduled_jobs"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     job_name = Column(String(255), unique=True, nullable=False)
     job_type = Column(String(100), nullable=False)
     
@@ -71,5 +72,5 @@ class ScheduledJob(Base):
     failure_count = Column(Integer, default=0)
     last_error = Column(Text, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

@@ -4,7 +4,8 @@ Email Rules & Automation Models
 SQLAlchemy models for user-defined email rules and automation (Module 18).
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -14,7 +15,7 @@ from core.storage.database import Base
 class EmailRule(Base):
     __tablename__ = "email_rules"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     
     name = Column(String(255), nullable=False)
@@ -31,14 +32,14 @@ class EmailRule(Base):
     times_triggered = Column(BigInteger, default=0)
     last_triggered_at = Column(DateTime, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class RuleExecutionLog(Base):
     __tablename__ = "rule_execution_log"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     rule_id = Column(String, ForeignKey("email_rules.id"), nullable=False, index=True)
     
     thread_id = Column(String, ForeignKey("threads.id"), nullable=False)
@@ -50,4 +51,4 @@ class RuleExecutionLog(Base):
     success = Column(Boolean, nullable=False)
     error_message = Column(Text, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

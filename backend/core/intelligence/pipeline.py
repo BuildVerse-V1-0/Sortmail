@@ -18,7 +18,7 @@ Flow:
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,7 +58,7 @@ async def process_thread_intelligence(
 
         # Skip if already processed recently (< 24h)
         if thread.intel_generated_at:
-            age = (datetime.utcnow() - thread.intel_generated_at).total_seconds() / 3600
+            age = (datetime.now(timezone.utc) - thread.intel_generated_at).total_seconds() / 3600
             if age < 24:
                 logger.debug(f"Thread {thread_id} intel fresh, skipping")
                 return None
@@ -101,7 +101,7 @@ async def process_thread_intelligence(
             "deadlines"        : deadlines,
             "entities"         : entities,
             "action_items"     : action_items,
-            "processed_at"     : datetime.utcnow().isoformat(),
+            "processed_at"     : datetime.now(timezone.utc).isoformat(),
         }
 
         # ── 6. Persist intel to Thread model ─────────────────────────
@@ -109,7 +109,7 @@ async def process_thread_intelligence(
         thread.intent               = intent
         thread.urgency_score        = urgency_score
         thread.intel_json           = final_intel
-        thread.intel_generated_at   = datetime.utcnow()
+        thread.intel_generated_at   = datetime.now(timezone.utc)
         await db.commit()
         logger.info(f"Intel saved: thread={thread_id} intent={intent} score={urgency_score}")
 
@@ -206,8 +206,8 @@ async def _create_task(
         status=TaskStatus.PENDING,
         source_type="ai_generated",
         ai_confidence=85,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     db.add(task)
     await db.commit()

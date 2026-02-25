@@ -4,7 +4,8 @@ Connected Account Model
 SQLAlchemy model for OAuth provider connections.
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, DateTime, ForeignKey, Enum, UniqueConstraint, Boolean, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 import enum
@@ -33,7 +34,7 @@ class ConnectedAccount(Base):
     """OAuth connected accounts per provider."""
     __tablename__ = "connected_accounts"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
     
@@ -49,14 +50,14 @@ class ConnectedAccount(Base):
     scopes = Column(String, nullable=False) # Stored as comma-separated or JSON if using JSONB
     
     # Status
-    status = Column(Enum(AccountStatus, native_enum=False, length=50), default=AccountStatus.ACTIVE)
+    status = Column(Enum(AccountStatus, native_enum=False, length=50), default=AccountStatus.ACTIVE, nullable=False)
     error_code = Column(String, nullable=True)
     error_message = Column(String, nullable=True)
     
     # Sync tracking
     last_sync_at = Column(DateTime)
     last_history_id = Column(String)
-    sync_status = Column(Enum(SyncStatus, native_enum=False, length=50), default=SyncStatus.IDLE)
+    sync_status = Column(Enum(SyncStatus, native_enum=False, length=50), default=SyncStatus.IDLE, nullable=False)
     sync_error = Column(String)
     
     # Sync Config
@@ -66,12 +67,12 @@ class ConnectedAccount(Base):
     sync_frequency_minutes = Column(Integer, default=15)
     last_watch_expires_at = Column(DateTime, nullable=True)
     
-    metadata_json = Column(JSONB, default={})
+    metadata_json = Column(JSONB, default=dict)
     
     # Timestamps & Soft Delete
     deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('user_id', 'provider', 'deleted_at', name='unique_user_provider_deleted'),
@@ -82,7 +83,7 @@ class OAuthStateToken(Base):
     """Temporary storage for OAuth CSRF protection."""
     __tablename__ = "oauth_state_tokens"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     state_token = Column(String, unique=True, index=True, nullable=False)
     user_id = Column(String, nullable=True) # Null for signup
     
@@ -97,4 +98,4 @@ class OAuthStateToken(Base):
     consumed = Column(Boolean, default=False)
     consumed_at = Column(DateTime, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

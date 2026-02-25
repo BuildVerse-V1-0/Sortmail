@@ -4,7 +4,8 @@ Analytics Models
 SQLAlchemy models for user activity and system analytics (Module 11).
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text, Date, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -27,23 +28,23 @@ class ActionType(str, enum.Enum):
 class UserActivityLog(Base):
     __tablename__ = "user_activity_logs"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     
     action_type = Column(Enum(ActionType), nullable=False)
     description = Column(Text, nullable=True)
-    metadata_json = Column(JSONB, default={})
+    metadata_json = Column(JSONB, default=dict)
     
     ip_address = Column(String(45), nullable=True)
     user_agent = Column(Text, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class UserAnalyticsDaily(Base):
     __tablename__ = "user_analytics_daily"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     date = Column(Date, nullable=False)
     
@@ -52,8 +53,8 @@ class UserAnalyticsDaily(Base):
     threads_processed = Column(Integer, default=0)
     time_saved_minutes = Column(Integer, default=0)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Unique constraint managed via migration/index
@@ -63,7 +64,7 @@ class UserAnalyticsDaily(Base):
 class SystemAnalyticsDaily(Base):
     __tablename__ = "system_analytics_daily"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     date = Column(Date, unique=True, nullable=False)
     
     total_users = Column(Integer, default=0)
@@ -72,5 +73,5 @@ class SystemAnalyticsDaily(Base):
     total_api_calls = Column(BigInteger, default=0)
     revenue_cents = Column(BigInteger, default=0)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

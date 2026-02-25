@@ -4,7 +4,8 @@ Calendar Suggestion Model
 SQLAlchemy model for calendar event suggestions.
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Boolean, Text, ForeignKey, Integer, Enum, Date
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 import enum
@@ -23,7 +24,7 @@ class CalendarSuggestion(Base):
     """AI-suggested calendar events."""
     __tablename__ = "calendar_suggestions"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     thread_id = Column(String, ForeignKey("threads.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     
@@ -38,24 +39,24 @@ class CalendarSuggestion(Base):
     suggested_end_time = Column(DateTime, nullable=True)
     suggested_timezone = Column(String, nullable=True)
     location = Column(String, nullable=True)
-    participants = Column(ARRAY(String), default=[])
+    participants = Column(ARRAY(String), default=list)
     
     is_recurring = Column(Boolean, default=False)
     recurrence_pattern = Column(String, nullable=True)
     
     confidence_score = Column(Integer, nullable=False) # Scaled decimal
-    status = Column(Enum(CalendarSuggestionStatus), default=CalendarSuggestionStatus.SUGGESTED)
+    status = Column(Enum(CalendarSuggestionStatus), default=CalendarSuggestionStatus.SUGGESTED, nullable=False)
     
     accepted_at = Column(DateTime, nullable=True)
     dismissed_at = Column(DateTime, nullable=True)
     external_calendar_event_id = Column(String, nullable=True)
     
-    metadata_json = Column(JSONB, default={})
+    metadata_json = Column(JSONB, default=dict)
     
     # Timestamps
     deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed in migration

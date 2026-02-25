@@ -7,7 +7,7 @@ Email sync and management endpoints.
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from core.storage.database import get_db
 from api.dependencies import get_current_user
@@ -62,7 +62,7 @@ async def sync_status(
         }
 
     last_sync = account.last_sync_at
-    stale_cutoff = datetime.utcnow() - timedelta(minutes=STALE_AFTER_MINUTES)
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=STALE_AFTER_MINUTES)
     needs_sync = (last_sync is None) or (last_sync < stale_cutoff)
 
     return {

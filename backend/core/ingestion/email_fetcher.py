@@ -231,7 +231,7 @@ def _parse_gmail_message(msg_resource: dict) -> Tuple[dict, List[dict]]:
             pass
             
     # internalDate is always when Gmail received the email
-    received_at = datetime.fromtimestamp(int(msg_resource.get('internalDate', 0)) / 1000)
+    received_at = datetime.fromtimestamp(int(msg_resource.get('internalDate', 0)) / 1000, tz=timezone.utc).replace(tzinfo=None)
     
     if not sent_at:
         sent_at = received_at
@@ -368,8 +368,8 @@ def normalize_email_thread(
             subject=m.get("subject", subject),
             body_text=m.get("body_text", ""),
             body_html=m.get("body_html", ""),
-            sent_at=m.get("sent_at", datetime.utcnow()),
-            received_at=m.get("received_at", datetime.utcnow()),
+            sent_at=m.get("sent_at", datetime.now(timezone.utc)),
+            received_at=m.get("received_at", datetime.now(timezone.utc)),
             is_from_user=m.get("is_from_user", False),
             labels=m.get("labels", []),
         )
@@ -396,7 +396,7 @@ def normalize_email_thread(
     
     last_updated = max(
         (m.sent_at for m in normalized_messages),
-        default=datetime.utcnow()
+        default=lambda: datetime.now(timezone.utc)()
     )
     
     # Aggregate labels from all messages

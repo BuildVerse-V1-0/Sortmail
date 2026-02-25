@@ -4,7 +4,7 @@ Reminder Service
 Handles follow-up reminder notifications.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 from contracts import WaitingForDTOv1
@@ -30,7 +30,7 @@ async def should_remind(waiting: WaitingForDTOv1) -> bool:
     if waiting.reminded:
         # Already reminded, check if enough time has passed
         if waiting.last_reminded_at:
-            days_since_reminder = (datetime.utcnow() - waiting.last_reminded_at).days
+            days_since_reminder = (datetime.now(timezone.utc) - waiting.last_reminded_at).days
             return days_since_reminder >= 2  # Re-remind every 2 days
         return False
     return waiting.days_waiting >= 3  # Initial reminder after 3 days

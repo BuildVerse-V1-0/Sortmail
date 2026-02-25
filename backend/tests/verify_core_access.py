@@ -1,7 +1,7 @@
 import asyncio
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Set strict env vars for connection AND mock vars for Settings validation
 # MUST BE DONE BEFORE IMPORTS from app or models
@@ -56,7 +56,7 @@ async def verify_core_access():
             print(f"User: {user.email} ({user.id})")
 
             # 2. Create Raw Thread (No AI Data)
-            thread_id = f"thread_core_{int(datetime.utcnow().timestamp())}"
+            thread_id = f"thread_core_{int(datetime.now(timezone.utc).timestamp())}"
             print(f"Creating raw thread: {thread_id}")
             thread = Thread(
                 id=thread_id,
@@ -65,7 +65,7 @@ async def verify_core_access():
                 subject="Hello World - No AI",
                 participants=["sender@example.com", "me@example.com"],
                 provider="gmail",
-                last_email_at=datetime.utcnow(),
+                last_email_at=datetime.now(timezone.utc),
                 is_unread=1,
                 # AI Fields explicitly None
                 summary=None,
@@ -76,7 +76,7 @@ async def verify_core_access():
             
             # 3. Create Raw Email
             email = Email(
-                id=f"email_core_{int(datetime.utcnow().timestamp())}",
+                id=f"email_core_{int(datetime.now(timezone.utc).timestamp())}",
                 user_id=user.id,
                 thread_id=thread_id,
                 external_id="msg_123",
@@ -84,7 +84,7 @@ async def verify_core_access():
                 recipients=[{"email": "me@example.com", "name": "Me"}],
                 subject="Hello World - No AI",
                 body_plain="This is a raw email body.",
-                received_at=datetime.utcnow()
+                received_at=datetime.now(timezone.utc)
             )
             db.add(email)
             await db.commit()

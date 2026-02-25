@@ -6,7 +6,7 @@ OAuth endpoints for Gmail and Outlook with Production Security.
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -44,7 +44,7 @@ async def google_auth(request: Request):
         "code_verifier": code_verifier,
         "ip_address": request.client.host,
         "user_agent": request.headers.get("user-agent", "unknown"),
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
     
     redis = await get_redis()
@@ -134,7 +134,7 @@ async def google_callback(
                 picture_url=user_info.picture,
                 provider=EmailProvider.GMAIL,
             access_token=enc_access_token, # Storing encrypted
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
                 status=UserStatus.ACTIVE
             )
             db.add(user)
@@ -167,8 +167,8 @@ async def google_callback(
         account.access_token = enc_access_token
         if enc_refresh_token:
             account.refresh_token = enc_refresh_token
-        account.token_expires_at = datetime.utcnow() + timedelta(seconds=tokens.expires_in)
-        account.last_sync_at = datetime.utcnow()
+        account.token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=tokens.expires_in)
+        account.last_sync_at = datetime.now(timezone.utc)
     else:
         account = ConnectedAccount(
             id=f"gmail_{user.id}",
@@ -176,9 +176,9 @@ async def google_callback(
             provider=ProviderType.GMAIL,
             access_token=enc_access_token,
             refresh_token=enc_refresh_token,
-            token_expires_at=datetime.utcnow() + timedelta(seconds=tokens.expires_in),
-            last_sync_at=datetime.utcnow(),
-            created_at=datetime.utcnow()
+            token_expires_at=datetime.now(timezone.utc) + timedelta(seconds=tokens.expires_in),
+            last_sync_at=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc)
         )
         db.add(account)
         
@@ -304,7 +304,7 @@ async def update_profile(
         prefs = user.preferences or {}
         prefs["locale"] = body.locale
         user.preferences = prefs
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now(timezone.utc)
     await db.commit()
     return {"updated": True}
 

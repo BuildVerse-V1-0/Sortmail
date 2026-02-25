@@ -4,7 +4,8 @@ User Model
 SQLAlchemy model for users table.
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -33,7 +34,7 @@ class EmailProvider(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String, unique=True, nullable=False, index=True)
     name = Column(String)
     picture_url = Column(String)
@@ -45,12 +46,12 @@ class User(Base):
     token_expires_at = Column(DateTime)
     
     # Enhanced Metadata
-    preferences = Column(JSONB, default={})
-    metadata_json = Column(JSONB, default={})
+    preferences = Column(JSONB, default=dict)
+    metadata_json = Column(JSONB, default=dict)
     
     # Status & Type
-    status = Column(Enum(UserStatus, name="user_status"), default=UserStatus.ACTIVE)
-    account_type = Column(Enum(AccountType, name="account_type"), default=AccountType.INDIVIDUAL)
+    status = Column(Enum(UserStatus, name="user_status"), default=UserStatus.ACTIVE, nullable=False)
+    account_type = Column(Enum(AccountType, name="account_type"), default=AccountType.INDIVIDUAL, nullable=False)
     is_superuser = Column(Boolean, default=False)
     
     # Multi-tenancy (Future)
@@ -60,8 +61,8 @@ class User(Base):
     last_login_at = Column(DateTime, nullable=True)
     last_login_ip = Column(String, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
@@ -70,7 +71,7 @@ class User(Base):
 class UserSession(Base):
     __tablename__ = "user_sessions"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     
     token_hash = Column(String, unique=True, index=True, nullable=False)
@@ -81,7 +82,7 @@ class UserSession(Base):
     expires_at = Column(DateTime, nullable=False)
     is_revoked = Column(Boolean, default=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     user = relationship("User", back_populates="sessions")
 
@@ -107,7 +108,7 @@ class SecuritySeverity(str, enum.Enum):
 class UserSecurityEvent(Base):
     __tablename__ = "user_security_events"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), index=True)
     
     event_type = Column(Enum(SecurityEventType), nullable=False)
@@ -115,10 +116,10 @@ class UserSecurityEvent(Base):
     user_agent = Column(String, nullable=False)
     device_fingerprint = Column(String, nullable=True)
     
-    metadata_json = Column(JSONB, default={})
-    severity = Column(Enum(SecuritySeverity), default=SecuritySeverity.INFO)
+    metadata_json = Column(JSONB, default=dict)
+    severity = Column(Enum(SecuritySeverity), default=SecuritySeverity.INFO, nullable=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class WorkspacePlan(str, enum.Enum):
@@ -133,19 +134,19 @@ class WorkspaceStatus(str, enum.Enum):
 class Workspace(Base):
     __tablename__ = "workspaces"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     slug = Column(String, unique=True, index=True, nullable=False)
     owner_id = Column(String, ForeignKey("users.id"), nullable=False)
     
-    plan = Column(Enum(WorkspacePlan), default=WorkspacePlan.TEAM)
+    plan = Column(Enum(WorkspacePlan), default=WorkspacePlan.TEAM, nullable=False)
     seat_limit = Column(Integer, nullable=False)
     seats_used = Column(Integer, default=1)
     
-    settings = Column(JSONB, default={})
+    settings = Column(JSONB, default=dict)
     billing_email = Column(String, nullable=True)
-    status = Column(Enum(WorkspaceStatus), default=WorkspaceStatus.ACTIVE)
+    status = Column(Enum(WorkspaceStatus), default=WorkspaceStatus.ACTIVE, nullable=False)
     
     deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

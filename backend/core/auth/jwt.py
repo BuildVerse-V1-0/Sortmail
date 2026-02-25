@@ -4,7 +4,7 @@ JWT Token Management
 Handles JWT creation, validation, and refresh.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -28,7 +28,7 @@ class TokenPair(BaseModel):
 
 def create_access_token(user_id: str, email: str) -> str:
     """Create a new access token."""
-    expire = datetime.utcnow() + timedelta(hours=settings.JWT_EXPIRY_HOURS)
+    expire = datetime.now(timezone.utc) + timedelta(hours=settings.JWT_EXPIRY_HOURS)
     payload = {
         "sub": user_id,
         "email": email,
@@ -40,7 +40,7 @@ def create_access_token(user_id: str, email: str) -> str:
 
 def create_refresh_token(user_id: str) -> str:
     """Create a new refresh token (longer lived)."""
-    expire = datetime.utcnow() + timedelta(days=7)
+    expire = datetime.now(timezone.utc) + timedelta(days=7)
     payload = {
         "sub": user_id,
         "exp": expire,
@@ -68,7 +68,7 @@ def verify_token(token: str) -> Optional[TokenData]:
         return TokenData(
             user_id=payload.get("sub"),
             email=payload.get("email", ""),
-            exp=datetime.fromtimestamp(payload.get("exp")),
+            exp=datetime.fromtimestamp(payload.get("exp"), tz=timezone.utc),
         )
     except JWTError:
         return None

@@ -7,7 +7,7 @@ Input: ThreadIntelV1 (from Intelligence)
 Output: DraftDTOv1 (Boundary Contract)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import uuid
 
@@ -55,7 +55,7 @@ async def generate_draft(
         has_unresolved_placeholders=len(placeholders) > 0,
         references_attachments=len(intel.attachment_summaries) > 0,
         references_deadlines=len(intel.extracted_deadlines) > 0,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         model_version=settings.LLM_PROVIDER,
     )
 

@@ -4,7 +4,8 @@ Admin & Moderation Models
 SQLAlchemy models for admin users, audit logs, and abuse reports (Module 12).
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 
@@ -56,11 +57,11 @@ class AbuseReportStatus(str, enum.Enum):
 class AdminUser(Base):
     __tablename__ = "admin_users"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False)
     
-    role = Column(Enum(AdminRole), default=AdminRole.READONLY)
-    permissions = Column(ARRAY(String), default=[])
+    role = Column(Enum(AdminRole), default=AdminRole.READONLY, nullable=False)
+    permissions = Column(ARRAY(String), default=list)
     
     can_impersonate = Column(Boolean, default=False)
     can_adjust_credits = Column(Boolean, default=False)
@@ -71,14 +72,14 @@ class AdminUser(Base):
     last_admin_action_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class AdminAuditLog(Base):
     __tablename__ = "admin_audit_log"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     admin_user_id = Column(String, ForeignKey("admin_users.id"), nullable=False, index=True)
     
     action_type = Column(Enum(AdminActionType), nullable=False)
@@ -91,23 +92,23 @@ class AdminAuditLog(Base):
     ip_address = Column(String(45), nullable=False)
     user_agent = Column(Text, nullable=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class AbuseReport(Base):
     __tablename__ = "abuse_reports"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     reporter_user_id = Column(String, ForeignKey("users.id"), nullable=True)
     reported_user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     
     report_type = Column(Enum(AbuseReportType), nullable=False)
-    severity = Column(Enum(AbuseReportSeverity), default=AbuseReportSeverity.LOW)
+    severity = Column(Enum(AbuseReportSeverity), default=AbuseReportSeverity.LOW, nullable=False)
     
     description = Column(Text, nullable=False)
-    evidence = Column(JSONB, default={})
+    evidence = Column(JSONB, default=dict)
     
-    status = Column(Enum(AbuseReportStatus), default=AbuseReportStatus.PENDING)
+    status = Column(Enum(AbuseReportStatus), default=AbuseReportStatus.PENDING, nullable=False)
     assigned_to_admin_id = Column(String, ForeignKey("admin_users.id"), nullable=True)
     resolution_notes = Column(Text, nullable=True)
     resolved_at = Column(DateTime, nullable=True)
@@ -115,5 +116,5 @@ class AbuseReport(Base):
     auto_detected = Column(Boolean, default=False)
     detection_rule = Column(String(100), nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

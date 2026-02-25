@@ -58,7 +58,7 @@ class CreditAdjustRequest(BaseModel):
 
 @router.get("/users", response_model=List[AdminUserOut])
 async def list_users(
-    limit: int = Query(default=50, le=200),
+    limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     search: Optional[str] = None,
     admin: User = Depends(require_superuser),
@@ -157,12 +157,14 @@ async def unsuspend_user(
         .where(User.id == user_id)
         .values(status=UserStatus.ACTIVE)
     )
-    await db.execute(stmt)
+    result = await db.execute(stmt)
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="User not found")
     await db.commit()
     return {"unsuspended": True, "user_id": user_id}
 
 
-@router.patch("/users/{user_id}/promote")
+@router.patch("/users/{user_id}/toggle-admin")
 async def toggle_superuser(
     user_id: str,
     admin: User = Depends(require_superuser),
@@ -188,12 +190,21 @@ async def adjust_credits(
     db: AsyncSession = Depends(get_db),
 ):
     """Manually add or deduct credits from a user (admin)."""
-    new_balance = await CreditService.add_credits(
-        db,
-        body.user_id,
-        body.amount,
-        TransactionType.ADMIN_ADJUSTMENT,
-        metadata={"reason": body.reason, "admin_id": admin.id},
-    )
-    await db.commit()
+    # Verify user exists
+    stmt = select(User.id).where(User.id == body.user_id)
+    if not (await db.execute(stmt)).scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    try:
+        new_balance = await CreditService.add_credits(
+            db,
+            body.user_id,
+            body.amount,
+            TransactionType.ADMIN_ADJUSTMENT,
+            metadata={"reason": body.reason, "admin_id": admin.id},
+        )
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
     return {"success": True, "new_balance": new_balance, "user_id": body.user_id}

@@ -4,7 +4,8 @@ Billing Models
 SQLAlchemy models for subscriptions and invoices (Module 8 Part 2).
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Date, Text
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -40,7 +41,7 @@ class InvoiceStatus(str, enum.Enum):
 class Subscription(Base):
     __tablename__ = "subscriptions"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False, index=True)
     workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=True)
     
@@ -60,16 +61,16 @@ class Subscription(Base):
     trial_start = Column(DateTime, nullable=True)
     trial_end = Column(DateTime, nullable=True)
     
-    metadata_json = Column(JSONB, default={})
+    metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Invoice(Base):
     __tablename__ = "invoices"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     
     stripe_invoice_id = Column(String(255), unique=True, nullable=False)
@@ -77,11 +78,11 @@ class Invoice(Base):
     
     amount_cents = Column(Integer, nullable=False)
     currency = Column(String(3), default='usd')
-    status = Column(Enum(InvoiceStatus), default=InvoiceStatus.DRAFT, index=True)
+    status = Column(Enum(InvoiceStatus), default=InvoiceStatus.DRAFT, index=True, nullable=False)
     
     invoice_pdf_url = Column(Text, nullable=True)
     paid_at = Column(DateTime, nullable=True)
     
-    metadata_json = Column(JSONB, default={})
+    metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

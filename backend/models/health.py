@@ -4,7 +4,8 @@ System Health & Monitoring Models
 SQLAlchemy models for health checks, error logs, and rate tracking (Module 16).
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -47,26 +48,26 @@ class RateLimitType(str, enum.Enum):
 class HealthCheck(Base):
     __tablename__ = "health_checks"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     component = Column(Enum(ComponentName), nullable=False)
     status = Column(Enum(HealthStatus), nullable=False)
     
     response_time_ms = Column(Integer, nullable=True)
     error_message = Column(Text, nullable=True)
     
-    checked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    metadata_json = Column(JSONB, default={})
+    checked_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    metadata_json = Column(JSONB, default=dict)
 
 
 class ErrorLog(Base):
     __tablename__ = "error_logs"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     error_type = Column(String(100), nullable=False)
     error_message = Column(Text, nullable=False)
     stack_trace = Column(Text, nullable=True)
     
-    severity = Column(Enum(ErrorSeverity), default=ErrorSeverity.ERROR)
+    severity = Column(Enum(ErrorSeverity), default=ErrorSeverity.ERROR, nullable=False)
     
     user_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     request_path = Column(String(500), nullable=True)
@@ -74,18 +75,18 @@ class ErrorLog(Base):
     ip_address = Column(String(45), nullable=True)
     user_agent = Column(Text, nullable=True)
     
-    context = Column(JSONB, default={})
+    context = Column(JSONB, default=dict)
     
     resolved = Column(Boolean, default=False)
     resolved_at = Column(DateTime, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class RateLimitViolation(Base):
     __tablename__ = "rate_limit_violations"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=True)
     
     ip_address = Column(String(45), nullable=False, index=True)
@@ -98,4 +99,4 @@ class RateLimitViolation(Base):
     blocked = Column(Boolean, default=True)
     user_agent = Column(Text, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
