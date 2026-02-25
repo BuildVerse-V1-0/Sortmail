@@ -10,7 +10,7 @@ Speed: ~3–5 seconds per thread
 import json
 import re
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -99,12 +99,15 @@ async def run_intelligence(
         genai.configure(api_key=settings.GEMINI_API_KEY)
     except Exception as e:
         logger.error(f"Gemini not configured: {e}")
-        return _fallback_intel(subject)
+        return _fallback_intel(subject, thread_id)
 
-    # Build messages XML block (trim long bodies to save tokens)
+    # Build messages XML block (trim long bodies to save tokens, escape XML)
     messages_xml = ""
     for msg in messages[:10]:  # max 10 messages per thread
-        body = (msg.get("body") or "")[:2000]  # 2000 chars max per message
+        body = (msg.get("body") or "")[:2000]
+        # Basic XML escape to prevent injection
+        body = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        
         messages_xml += (
             f"<message>\n"
             f"  <from>{msg.get('from', '')}</from>\n"
@@ -113,10 +116,12 @@ async def run_intelligence(
             f"</message>\n"
         )
 
-    prompt = INTELLIGENCE_PROMPT.format(
-        subject=subject or "(No Subject)",
-        participants=", ".join(participants[:10]),
-        messages=messages_xml,
+    prompt = INTELLIGENCE_PROMPT.replace(
+        "{subject}", subject or "(No Subject)"
+    ).replace(
+        "{participants}", ", ".join(participants[:10])
+    ).replace(
+        "{messages}", messages_xml
     )
 
     try:
@@ -136,7 +141,7 @@ async def run_intelligence(
 
         intel = json.loads(raw)
         intel["thread_id"] = thread_id
-        intel["processed_at"] = datetime.utcnow().isoformat()
+        intel["processed_at"] = datetime.now(timezone.utc).isoformat()
         intel["model"] = "gemini-2.0-flash"
 
         logger.info(
@@ -147,15 +152,17 @@ async def run_intelligence(
 
     except json.JSONDecodeError as e:
         logger.error(f"Intel JSON parse error for thread {thread_id}: {e}")
-        return _fallback_intel(subject)
+        return _fallback_intel(subject, thread_id)
     except Exception as e:
         logger.error(f"Intel generation failed for thread {thread_id}: {e}")
-        return _fallback_intel(subject)
+        return _fallback_intel(subject, thread_id)
 
 
-def _fallback_intel(subject: str) -> dict:
+def _fallback_intel(subject: str, thread_id: str) -> dict:
     """Return minimal safe intel when Gemini fails."""
     return {
+        "thread_id": thread_id,
+        "processed_at": datetime.now(timezone.utc).isoformat(),
         "summary": f"Email thread: {subject or '(No Subject)'}",
         "intent": "fyi",
         "urgency_score": 10,

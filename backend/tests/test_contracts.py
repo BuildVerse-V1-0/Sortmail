@@ -6,7 +6,7 @@ Run these before any PR merge.
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from contracts import (
     # Ingestion
@@ -74,7 +74,7 @@ class TestEmailThreadV1:
             participants=[],
             messages=[],
             attachments=[],
-            last_updated=datetime.utcnow(),
+            last_updated=datetime.now(timezone.utc),
             provider="gmail",
         )
         assert len(thread.messages) == 0
@@ -107,7 +107,7 @@ class TestThreadIntelV1:
                 attachment_summaries=[],
                 suggested_reply_points=[],
                 model_version="test",
-                processed_at=datetime.utcnow(),
+                processed_at=datetime.now(timezone.utc),
             )
             assert intel.intent == intent
     
@@ -156,8 +156,8 @@ class TestTaskDTOv1:
                 priority_explanation="Test",
                 effort=EffortLevel.QUICK,
                 status=TaskStatus.PENDING,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             )
 
 
@@ -237,8 +237,8 @@ class TestContractFlow:
             priority_explanation=f"Score {intel.urgency_score}: {intel.intent.value}",
             effort=EffortLevel.QUICK,
             status=TaskStatus.PENDING,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         
         assert task.thread_id == intel.thread_id

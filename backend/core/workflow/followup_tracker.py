@@ -6,7 +6,7 @@ Tracks threads waiting for reply.
 Output: WaitingForDTOv1 (Boundary Contract)
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 import uuid
 
@@ -35,7 +35,7 @@ async def check_waiting_for(
 
 def calculate_days_waiting(last_sent: datetime) -> int:
     """Calculate number of days since last outbound message."""
-    delta = datetime.utcnow() - last_sent
+    delta = datetime.now(timezone.utc) - last_sent
     return delta.days
 
 

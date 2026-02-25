@@ -7,7 +7,7 @@ Input: ThreadIntelV1 (from Intelligence)
 Output: TaskDTOv1 (Boundary Contract)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 import uuid
 
@@ -61,8 +61,8 @@ async def generate_tasks(
             deadline=deadline,
             deadline_source=intel.extracted_deadlines[0].raw_text if intel.extracted_deadlines else None,
             status=TaskStatus.PENDING,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         tasks.append(task)
     
@@ -141,6 +141,6 @@ def _create_review_task(intel: ThreadIntelV1, user_id: str, attachment) -> TaskD
         deadline=None,
         deadline_source=None,
         status=TaskStatus.PENDING,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )

@@ -11,7 +11,7 @@ Implements:
 
 import uuid
 from typing import Optional, Dict, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, insert, and_
 from sqlalchemy.orm import selectinload
@@ -45,7 +45,7 @@ class CreditService:
                 credits_balance=50, # Free tier default
                 plan=PlanType.FREE,
                 monthly_credits_allowance=50,
-                billing_cycle_start=datetime.utcnow().date(),
+                billing_cycle_start=datetime.now(timezone.utc).date(),
                 version=1
             )
             db.add(user_credits)
@@ -73,12 +73,14 @@ class CreditService:
         )
         result = await db.execute(stmt)
         pricing = result.scalar_one_or_none()
-        return pricing.credits_cost if pricing else 0
+        if not pricing:
+            raise ValueError(f"Pricing not found for operation: {operation_type}")
+        return pricing.credits_cost
 
     @staticmethod
     async def check_rate_limits(db: AsyncSession, user_credits: UserCredits, limits: Optional[UserCreditLimits]) -> None:
         """Check if user has exceeded rate limits."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         # 1. Check strict limits from UserCreditLimits if they exist
         if limits:
@@ -126,6 +128,10 @@ class CreditService:
             stmt_limits = select(UserCreditLimits).where(UserCreditLimits.user_id == user_id)
             limits = (await db.execute(stmt_limits)).scalar_one_or_none()
             
+            # Refresh ORM object to avoid stale state in retry loop
+            if attempt > 0:
+                await db.refresh(user_credits)
+
             # Verify Balance
             if user_credits.credits_balance < cost:
                 raise InsufficientCreditsError(f"Insufficient credits. Cost: {cost}, Balance: {user_credits.credits_balance}")
@@ -150,11 +156,11 @@ class CreditService:
                     credits_used_this_month=UserCredits.credits_used_this_month + cost,
                     operations_count_last_minute=UserCredits.operations_count_last_minute + 1,
                     operations_count_last_hour=UserCredits.operations_count_last_hour + 1,
-                    last_operation_at=datetime.utcnow(),
+                    last_operation_at=datetime.now(timezone.utc),
                     version=current_version + 1,
-                    updated_at=datetime.utcnow()
+                    updated_at=datetime.now(timezone.utc)
                 )
-                .execution_options(synchronize_session="fetch")
+                .execution_options(synchronize_session=False)
             )
             result = await db.execute(stmt)
             
@@ -170,7 +176,7 @@ class CreditService:
                     operation_type=operation_type,
                     related_entity_id=related_entity_id,
                     status=TransactionStatus.RESERVED,
-                    expires_at=datetime.utcnow() + timedelta(minutes=5),
+                    expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
                     metadata_json=metadata or {}
                 )
                 db.add(transaction)
@@ -211,17 +217,30 @@ class CreditService:
         refund_amount = abs(txn.amount) 
         user_credits = await CreditService.get_or_create_user_credits(db, txn.user_id)
         
-        # Loop for optimistic lock (simplified here, assuming less contention on rollback)
-        stmt = (
-            update(UserCredits)
-            .where(UserCredits.id == user_credits.id) # Should use version ideally
-            .values(
-                credits_balance=UserCredits.credits_balance + refund_amount,
-                credits_total_spent=UserCredits.credits_total_spent - refund_amount,
-                version=UserCredits.version + 1
+        # Optimistic Locking for rollback
+        for attempt in range(3):
+            user_credits = await CreditService.get_or_create_user_credits(db, txn.user_id)
+            if attempt > 0:
+                await db.refresh(user_credits)
+                
+            stmt = (
+                update(UserCredits)
+                .where(
+                    UserCredits.id == user_credits.id,
+                    UserCredits.version == user_credits.version
+                )
+                .values(
+                    credits_balance=user_credits.credits_balance + refund_amount,
+                    credits_total_spent=user_credits.credits_total_spent - refund_amount,
+                    credits_used_this_month=user_credits.credits_used_this_month - refund_amount,
+                    version=user_credits.version + 1
+                )
             )
-        )
-        await db.execute(stmt)
+            result = await db.execute(stmt)
+            if result.rowcount == 1:
+                break
+        else:
+            raise Exception("Concurrency Limit Exceeded during rollback refund.")
         
         # 3. Log Refund Transaction (Internal)
         refund_txn = CreditTransaction(
@@ -241,10 +260,20 @@ class CreditService:
 
     @staticmethod
     async def check_balance(db: AsyncSession, user_id: str, operation_type: str) -> bool:
-        """Simple check (no deduction)."""
-        cost = await CreditService.get_operation_cost(db, operation_type)
+        try:
+            cost = await CreditService.get_operation_cost(db, operation_type)
+        except ValueError:
+            return False
+            
         if cost == 0: return True
-        credits = await CreditService.get_or_create_user_credits(db, user_id)
+        
+        stmt = select(UserCredits).where(UserCredits.user_id == user_id)
+        result = await db.execute(stmt)
+        credits = result.scalar_one_or_none()
+        
+        if not credits:
+            return 50 >= cost # Free tier implicit assumption for uninstantiated users
+
         return credits.credits_balance >= cost
 
     # Old method for backward compatibility (wraps reserve+commit)
@@ -262,8 +291,9 @@ class CreditService:
         # Commit immediately
         await CreditService.commit_reservation(db, txn_id)
         
-        # Return new balance
+        # Return new balance with explicit refresh
         credits = await CreditService.get_or_create_user_credits(db, user_id)
+        await db.refresh(credits)
         return credits.credits_balance
 
     @staticmethod
@@ -281,28 +311,41 @@ class CreditService:
         import uuid as _uuid
         from models.credits import TransactionStatus
 
-        user_credits = await CreditService.get_or_create_user_credits(db, user_id)
-        current_version = user_credits.version
-        new_balance = user_credits.credits_balance + amount
+        if amount == 0:
+            raise ValueError("Amount to add/deduct cannot be zero.")
 
-        stmt = (
-            update(UserCredits)
-            .where(
-                UserCredits.id == user_credits.id,
-                UserCredits.version == current_version
+        # Optimistic locking retry loop
+        for attempt in range(3):
+            user_credits = await CreditService.get_or_create_user_credits(db, user_id)
+            if attempt > 0:
+                await db.refresh(user_credits)
+                
+            current_version = user_credits.version
+            new_balance = user_credits.credits_balance + amount
+            
+            if new_balance < 0:
+                raise InsufficientCreditsError(f"Cannot deduct {-amount}: Balance would drop below zero.")
+
+            stmt = (
+                update(UserCredits)
+                .where(
+                    UserCredits.id == user_credits.id,
+                    UserCredits.version == current_version
+                )
+                .values(
+                    credits_balance=new_balance,
+                    credits_total_earned=UserCredits.credits_total_earned + max(0, amount),
+                    credits_total_spent=UserCredits.credits_total_spent + max(0, -amount),
+                    updated_at=datetime.now(timezone.utc),
+                )
+                .execution_options(synchronize_session=False)
             )
-            .values(
-                credits_balance=new_balance,
-                credits_total_earned=UserCredits.credits_total_earned + max(0, amount),
-                credits_total_spent=UserCredits.credits_total_spent + max(0, -amount),
-                version=current_version + 1,
-                updated_at=datetime.utcnow(),
-            )
-            .execution_options(synchronize_session="fetch")
-        )
-        result = await db.execute(stmt)
-        if result.rowcount == 0:
-            raise Exception("Concurrent credit update detected, please retry.")
+            result = await db.execute(stmt)
+            if result.rowcount == 1:
+                break
+            else:
+                if attempt == 2:
+                    raise Exception("Concurrent credit update detected, please retry.")
 
         transaction = CreditTransaction(
             id=str(_uuid.uuid4()),

@@ -4,8 +4,9 @@ AI Core Models
 SQLAlchemy models for AI processing queue and usage tracking.
 """
 
-from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Enum, Boolean, BigInteger, Date, UniqueConstraint
+from datetime import uuid
+import datetime, timezone
+from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Enum, Boolean, BigInteger, Date, UniqueConstraint, Float
 from sqlalchemy.dialects.postgresql import JSONB
 import enum
 
@@ -39,7 +40,7 @@ class AIProcessingQueue(Base):
     """Queue for asynchronous AI operations."""
     __tablename__ = "ai_processing_queue"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     
     operation_type = Column(Enum(AIOperationType), nullable=False)
@@ -47,7 +48,7 @@ class AIProcessingQueue(Base):
     entity_id = Column(String, nullable=False, index=True)
     
     priority = Column(Integer, default=5) # 1=high, 10=low
-    status = Column(Enum(AIQueueStatus), default=AIQueueStatus.PENDING)
+    status = Column(Enum(AIQueueStatus), default=AIQueueStatus.PENDING, nullable=False)
     
     attempts = Column(Integer, default=0)
     max_attempts = Column(Integer, default=3)
@@ -62,10 +63,10 @@ class AIProcessingQueue(Base):
     
     input_context = Column(JSONB, nullable=True)
     result = Column(JSONB, nullable=True)
-    metadata_json = Column(JSONB, default={})
+    metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes are complex to define in SQLAlchemy inline sometimes, usually better in migration script via SQL,
@@ -78,7 +79,7 @@ class AIUsageLog(Base):
     """Track AI API usage and costs."""
     __tablename__ = "ai_usage_logs"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     
     operation_type = Column(String, nullable=False)
@@ -101,16 +102,16 @@ class AIUsageLog(Base):
     error_occurred = Column(Boolean, default=False)
     error_type = Column(String, nullable=True)
     
-    metadata_json = Column(JSONB, default={})
+    metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class AIUsageDailySummary(Base):
     """Pre-aggregated daily usage stats."""
     __tablename__ = "ai_usage_daily_summary"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     date = Column(Date, nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=True) # Null = system wide
     
@@ -122,10 +123,10 @@ class AIUsageDailySummary(Base):
     total_credits_charged = Column(BigInteger, nullable=True)
     
     avg_latency_ms = Column(Integer, nullable=True)
-    cache_hit_rate = Column(Integer, nullable=True) # Stored as percentage 0-100 or keep Decimal support
-    error_rate = Column(Integer, nullable=True)
+    cache_hit_rate = Column(Float, nullable=True) # Stored as percentage
+    error_rate = Column(Float, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('date', 'user_id', 'operation_type', name='unique_daily_usage'),

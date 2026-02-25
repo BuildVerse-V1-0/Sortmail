@@ -4,7 +4,8 @@ Task Model
 SQLAlchemy model for tasks table.
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Enum, Boolean, Date
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 import enum
@@ -41,7 +42,7 @@ class EffortLevel(str, enum.Enum):
 class Task(Base):
     __tablename__ = "tasks"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     source_thread_id = Column(String, ForeignKey("threads.id"), nullable=True, index=True)
     workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=True) # Future team tasks
@@ -49,8 +50,8 @@ class Task(Base):
     # Task details
     title = Column(String, nullable=False)
     description = Column(Text)
-    status = Column(Enum(TaskStatus, native_enum=False, length=50), default=TaskStatus.PENDING)
-    task_type = Column(Enum(TaskType, native_enum=False, length=50), default=TaskType.GENERAL)
+    status = Column(Enum(TaskStatus, native_enum=False, length=50), default=TaskStatus.PENDING, nullable=False)
+    task_type = Column(Enum(TaskType, native_enum=False, length=50), default=TaskType.GENERAL, nullable=False)
     
     # Priority
     priority_level = Column(String, nullable=True) # urgent, high, medium, low
@@ -69,15 +70,15 @@ class Task(Base):
     completed_at = Column(DateTime, nullable=True)
     
     assigned_to_user_id = Column(String, ForeignKey("users.id"), nullable=True)
-    tags = Column(ARRAY(String), default=[])
-    metadata_json = Column(JSONB, default={})
+    tags = Column(ARRAY(String), default=list)
+    metadata_json = Column(JSONB, default=dict)
     
     version = Column(Integer, default=0)
     
     # Timestamps
     deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes are managed via migration mainly

@@ -5,7 +5,7 @@ Aggregation endpoints for the main dashboard.
 """
 
 from typing import List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, and_
@@ -87,7 +87,7 @@ async def get_dashboard_stats(
             summary=t.summary or "Pending analysis...",
             intent=t.intent or "processing",
             urgency_score=t.urgency_score or 0,
-            last_updated=t.last_email_at or datetime.utcnow(),
+            last_updated=t.last_email_at or datetime.now(timezone.utc),
             has_attachments=t.has_attachments or False,
         )
         for t in recent_threads_db
@@ -138,6 +138,6 @@ async def get_dashboard_stats(
         ),
         briefing=briefing,
         # Convert Pydantic models to dicts because Contract uses List[dict] to avoid circular imports
-        recent_threads=[t.dict() for t in recent_threads],
-        priority_tasks=[t.dict() for t in priority_tasks]
+        recent_threads=[t.model_dump() for t in recent_threads],
+        priority_tasks=[t.model_dump() for t in priority_tasks]
     )

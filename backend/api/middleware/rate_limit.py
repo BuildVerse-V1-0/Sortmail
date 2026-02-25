@@ -6,7 +6,7 @@ Simple rate limiting for API protection.
 
 from typing import Optional
 from fastapi import Request, HTTPException
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 
 
@@ -21,7 +21,7 @@ async def rate_limit_middleware(request: Request, calls_per_minute: int = 60):
     In production, use Redis-based rate limiting.
     """
     client_ip = request.client.host
-    current_minute = datetime.utcnow().strftime("%Y-%m-%d-%H-%M")
+    current_minute = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M")
     key = f"{client_ip}:{current_minute}"
     
     # Increment counter

@@ -1,6 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("/", response_model=List[TaskDTOv1])
 async def list_tasks(
     status: Optional[str] = None,
-    limit: int = Query(default=50, le=100),
+    limit: int = Query(default=50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -47,81 +47,6 @@ async def list_tasks(
         )
         for t in tasks
     ]
-
-
-@router.get("/{task_id}", response_model=TaskDTOv1)
-async def get_task(
-    task_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Get a specific task by ID."""
-    stmt = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
-    result = await db.execute(stmt)
-    task = result.scalars().first()
-
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    return TaskDTOv1(
-        task_id=task.id,
-        thread_id=task.source_thread_id,
-        user_id=task.user_id,
-        title=task.title,
-        description=task.description,
-        task_type=task.task_type,
-        priority=task.priority_level,
-        priority_score=task.priority_score,
-        status=task.status,
-        deadline=task.due_date,
-        created_at=task.created_at,
-        updated_at=task.updated_at
-    )
-
-
-@router.patch("/{task_id}")
-async def update_task(
-    task_id: str,
-    status: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Update task status."""
-    stmt = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
-    result = await db.execute(stmt)
-    task = result.scalars().first()
-
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    if status:
-        task.status = status
-        task.updated_at = datetime.utcnow()
-        await db.commit()
-
-    return {"task_id": task_id, "status": task.status, "updated": True}
-
-
-@router.delete("/{task_id}")
-async def dismiss_task(
-    task_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Dismiss/cancel a task."""
-    stmt = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
-    result = await db.execute(stmt)
-    task = result.scalars().first()
-
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    task.status = DBTaskStatus.CANCELLED   # model: CANCELLED (no DISMISSED)
-    task.updated_at = datetime.utcnow()
-    await db.commit()
-
-    return {"task_id": task_id, "dismissed": True}
-
 
 
 # ─── Calendar Suggestions ──────────────────────────────────────────────────────
@@ -207,3 +132,81 @@ async def dismiss_calendar_suggestion(
     except Exception:
         pass
     return {"dismissed": True}
+
+
+@router.get("/{task_id}", response_model=TaskDTOv1)
+async def get_task(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get a specific task by ID."""
+    stmt = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
+    result = await db.execute(stmt)
+    task = result.scalars().first()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return TaskDTOv1(
+        task_id=task.id,
+        thread_id=task.source_thread_id,
+        user_id=task.user_id,
+        title=task.title,
+        description=task.description,
+        task_type=task.task_type,
+        priority=task.priority_level,
+        priority_score=task.priority_score,
+        status=task.status,
+        deadline=task.due_date,
+        created_at=task.created_at,
+        updated_at=task.updated_at
+    )
+
+
+@router.patch("/{task_id}")
+async def update_task(
+    task_id: str,
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update task status."""
+    stmt = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
+    result = await db.execute(stmt)
+    task = result.scalars().first()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if status:
+        task.status = status
+        task.updated_at = datetime.now(timezone.utc)
+        await db.commit()
+
+    return {"task_id": task_id, "status": task.status, "updated": True}
+
+
+@router.delete("/{task_id}")
+async def dismiss_task(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Dismiss/cancel a task."""
+    stmt = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
+    result = await db.execute(stmt)
+    task = result.scalars().first()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    task.status = DBTaskStatus.CANCELLED   # model: CANCELLED (no DISMISSED)
+    task.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {"task_id": task_id, "dismissed": True}
+
+
+
+# Calendar suggestions routes moved up to prevent shadowing by /{task_id}

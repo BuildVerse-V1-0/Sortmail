@@ -8,7 +8,7 @@ Async-safe: uses aiofiles for all I/O.
 import os
 import aiofiles
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.config import settings
 from contracts import AttachmentRef
@@ -71,7 +71,7 @@ def _generate_smart_filename(original: str, mime_type: str) -> str:
     """
     # TODO: Implement smart renaming based on content analysis
     # For now, keep original with date prefix
-    date_prefix = datetime.utcnow().strftime("%Y-%m-%d")
+    date_prefix = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     name, ext = os.path.splitext(original)
     return f"{name}_{date_prefix}{ext}"
 
@@ -94,10 +94,11 @@ async def _store_attachment(
     """
     # Per-user directory for isolation
     storage_dir = os.path.join(settings.STORAGE_PATH, str(user_id))
-    os.makedirs(storage_dir, exist_ok=True)
+    import asyncio
+    await asyncio.to_thread(os.makedirs, storage_dir, exist_ok=True)
     
     # Sanitize filename (strip path separators to prevent directory traversal)
-    safe_filename = os.path.basename(filename)
+    safe_filename = os.path.basename(filename) or "unnamed_attachment"
     file_path = os.path.join(storage_dir, safe_filename)
     
     # Async write
@@ -118,7 +119,8 @@ SUPPORTED_MIME_TYPES = [
 
 def is_supported_attachment(mime_type: str) -> bool:
     """Check if attachment type is supported for processing."""
-    return mime_type in SUPPORTED_MIME_TYPES
+    if not mime_type: return False
+    return mime_type.lower().strip() in SUPPORTED_MIME_TYPES
 
 async def index_attachment(attachment_id: str, user_id: str, db):
     """
@@ -157,44 +159,35 @@ async def index_attachment(attachment_id: str, user_id: str, db):
         att.extracted_text = text
         await db.commit()
         
-    # Hook into intelligent router strategy
-    try:
-        from core.rag.attachment_strategy import AttachmentContextStrategy
-        await AttachmentContextStrategy.process_attachment(att, user_id, db)
-    except Exception as e:
-        logger.error(f"Context routing failed for {att.filename}: {e}")
+        # Hook into intelligent router strategy
+        try:
+            from core.rag.attachment_strategy import AttachmentContextStrategy
+            await AttachmentContextStrategy.process_attachment(att, user_id, db)
+        except Exception as e:
+            logger.error(f"Context routing failed for {att.filename}: {e}")
 
 async def _extract_pdf(path: str) -> str:
     import asyncio
     def _read():
-        try:
-            from pypdf import PdfReader
-            reader = PdfReader(path)
-            return "\n".join([page.extract_text() or "" for page in reader.pages])
-        except Exception:
-            return ""
+        from pypdf import PdfReader
+        reader = PdfReader(path)
+        return "\n".join([page.extract_text() or "" for page in reader.pages])
     return await asyncio.to_thread(_read)
 
 async def _extract_docx(path: str) -> str:
     import asyncio
     def _read():
-        try:
-            from docx import Document
-            doc = Document(path)
-            return "\n".join(p.text for p in doc.paragraphs)
-        except Exception:
-            return ""
+        from docx import Document
+        doc = Document(path)
+        return "\n".join(p.text for p in doc.paragraphs)
     return await asyncio.to_thread(_read)
 
 async def _extract_pptx(path: str) -> str:
     import asyncio
     def _read():
-        try:
-            from pptx import Presentation
-            prs = Presentation(path)
-            return "\n".join([
-                shape.text for slide in prs.slides for shape in slide.shapes if hasattr(shape, "text")
-            ])
-        except Exception:
-            return ""
+        from pptx import Presentation
+        prs = Presentation(path)
+        return "\n".join([
+            shape.text for slide in prs.slides for shape in slide.shapes if hasattr(shape, "text")
+        ])
     return await asyncio.to_thread(_read)

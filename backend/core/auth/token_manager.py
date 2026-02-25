@@ -10,13 +10,14 @@ Handles secure lifecycle of OAuth tokens:
 
 import logging
 import asyncio
-from datetime import datetime, timedelta
+import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.connected_account import ConnectedAccount, ProviderType
+from models.connected_account import ConnectedAccount, ProviderType, SyncStatus
 from core.auth import oauth_google
 from core.encryption import encrypt_token, decrypt_token
 from core.redis import get_redis
@@ -49,9 +50,9 @@ async def get_valid_google_token(user_id: str) -> str:
         if account.status == "revoked":
             raise TokenRevokedError("Account access has been revoked by user")
 
-        # Check expiration (refresh if < 5 mins remaining)
-        now = datetime.utcnow()
-        if account.token_expires_at and account.token_expires_at < now + timedelta(minutes=5):
+        # Check expiration (refresh if < 5 mins remaining or no expiration set)
+        now = datetime.now(timezone.utc)
+        if not account.token_expires_at or account.token_expires_at < now + timedelta(minutes=5):
             return await _refresh_google_token(db, account)
             
         # Token is valid, decrypt and return
@@ -68,9 +69,11 @@ async def _refresh_google_token(db: AsyncSession, account: ConnectedAccount) -> 
     redis = await get_redis()
     lock_key = f"lock:refresh:{account.user_id}"
     
+    lock_val = str(uuid.uuid4())
+    
     # Try to acquire lock
     # nx=True (Only set if not exists), ex=30 (Expire in 30s)
-    acquired = await redis.set(lock_key, "1", nx=True, ex=30)
+    acquired = await redis.set(lock_key, lock_val, nx=True, ex=30)
     
     if not acquired:
         # Lock exists, wait for other process to refresh
@@ -79,7 +82,7 @@ async def _refresh_google_token(db: AsyncSession, account: ConnectedAccount) -> 
             await asyncio.sleep(0.2)
             # Re-fetch account to see if updated
             await db.refresh(account)
-            if account.token_expires_at > datetime.utcnow() + timedelta(minutes=1):
+            if account.token_expires_at and account.token_expires_at > datetime.now(timezone.utc) + timedelta(minutes=1):
                 return decrypt_token(account.access_token)
         
         # If we timeout waiting, assume other process failed and we should try (or just fail)
@@ -100,11 +103,11 @@ async def _refresh_google_token(db: AsyncSession, account: ConnectedAccount) -> 
             logger.error(f"Google token refresh failed for user {account.user_id}: {e}")
             if "invalid_grant" in str(e) or "revoked" in str(e):
                 account.status = "revoked"
-                account.sync_status = "failed"
+                account.sync_status = SyncStatus.FAILED
                 account.sync_error = "Token revoked during refresh"
                 await db.commit()
                 raise TokenRevokedError("Token revoked")
-            raise
+            raise TokenExpiredError(f"OAuth token expired and refresh failed: {e}")
 
         # Update DB
         account.access_token = encrypt_token(new_tokens.access_token)
@@ -113,11 +116,19 @@ async def _refresh_google_token(db: AsyncSession, account: ConnectedAccount) -> 
              # but sometimes they rotate it.
             account.refresh_token = encrypt_token(new_tokens.refresh_token)
             
-        account.token_expires_at = datetime.utcnow() + timedelta(seconds=new_tokens.expires_in)
+        account.token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=new_tokens.expires_in)
         await db.commit()
         
         return new_tokens.access_token
         
     finally:
-        # Release lock
-        await redis.delete(lock_key)
+        # Release lock safely using Lua script to prevent lock theft
+        lua_script = """
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            return redis.call("del", KEYS[1])
+        else
+            return 0
+        end
+        """
+        if acquired:
+            await redis.eval(lua_script, 1, lock_key, lock_val)

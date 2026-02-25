@@ -5,11 +5,11 @@ In-app notification endpoints.
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, desc
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 
 from core.storage.database import get_db
 from api.dependencies import get_current_user
@@ -35,7 +35,7 @@ class NotificationOut(BaseModel):
 
 @router.get("/", response_model=List[NotificationOut])
 async def list_notifications(
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -67,7 +67,7 @@ async def mark_notification_read(
             Notification.id == notification_id,
             Notification.user_id == current_user.id,
         )
-        .values(is_read=True, read_at=datetime.utcnow())
+        .values(is_read=True, read_at=datetime.now(timezone.utc))
     )
     await db.execute(stmt)
     await db.commit()
@@ -86,7 +86,7 @@ async def mark_all_notifications_read(
             Notification.user_id == current_user.id,
             Notification.is_read == False,
         )
-        .values(is_read=True, read_at=datetime.utcnow())
+        .values(is_read=True, read_at=datetime.now(timezone.utc))
     )
     await db.execute(stmt)
     await db.commit()
@@ -106,7 +106,7 @@ async def dismiss_notification(
             Notification.id == notification_id,
             Notification.user_id == current_user.id,
         )
-        .values(is_dismissed=True, dismissed_at=datetime.utcnow())
+        .values(is_dismissed=True, dismissed_at=datetime.now(timezone.utc))
     )
     await db.execute(stmt)
     await db.commit()
@@ -161,7 +161,14 @@ async def get_notification_preferences(
             user_id=current_user.id,
         )
         db.add(prefs)
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception:
+            # Handle parallel TOCTOU initialization race
+            await db.rollback()
+            result = await db.execute(stmt)
+            prefs = result.scalar_one_or_none()
+            if not prefs: raise
 
     return NotificationPreferencesOut(
         email_enabled=prefs.email_enabled,
@@ -203,14 +210,22 @@ async def update_notification_preferences(
         prefs.in_app_enabled = body.in_app_enabled
     if body.channels is not None:
         prefs.channels = body.channels
-    if body.quiet_hours_start is not None:
-        h, m = map(int, body.quiet_hours_start.split(":"))
-        prefs.quiet_hours_start = dtime(h, m)
-    if body.quiet_hours_end is not None:
-        h, m = map(int, body.quiet_hours_end.split(":"))
-        prefs.quiet_hours_end = dtime(h, m)
+    try:
+        if body.quiet_hours_start is not None:
+            h, m = map(int, body.quiet_hours_start.split(":"))
+            prefs.quiet_hours_start = dtime(h, m)
+        if body.quiet_hours_end is not None:
+            h, m = map(int, body.quiet_hours_end.split(":"))
+            prefs.quiet_hours_end = dtime(h, m)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid time format. Expected HH:MM")
+
     if body.quiet_hours_timezone is not None:
         prefs.quiet_hours_timezone = body.quiet_hours_timezone
 
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update preferences")
     return {"updated": True}

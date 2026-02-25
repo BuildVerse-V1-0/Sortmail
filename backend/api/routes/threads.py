@@ -7,7 +7,7 @@ Email thread endpoints.
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 
 from contracts import ThreadIntelV1
 from contracts.mocks import create_mock_thread_intel
@@ -68,7 +68,7 @@ async def list_threads(
             summary=t.summary or "Pending analysis...",
             intent=t.intent or "processing",
             urgency_score=t.urgency_score or 0,
-            last_updated=t.last_email_at or datetime.utcnow(),
+            last_updated=t.last_email_at or datetime.now(timezone.utc),
             has_attachments=t.has_attachments or False,
             participants=list(t.participants or []),
             is_unread=t.is_unread or 0,
@@ -172,7 +172,7 @@ def _serialize_intel(t: Thread) -> Optional[ThreadIntelV1]:
         suggested_action=None,
         suggested_reply_points=[],
         schema_version="v0-partial",
-        processed_at=t.intel_generated_at or datetime.utcnow()
+        processed_at=t.intel_generated_at or datetime.now(timezone.utc)
     )
 
 class ThreadDetailResponse(BaseModel):
@@ -249,7 +249,7 @@ async def get_thread(
         participants=thread.participants or [],
         messages=normalized_messages,
         attachments=normalized_attachments,
-        last_updated=thread.last_email_at or datetime.utcnow(),
+        last_updated=thread.last_email_at or datetime.now(timezone.utc),
         provider=thread.provider,
         labels=thread.labels or [],
         is_unread=bool(thread.is_unread),

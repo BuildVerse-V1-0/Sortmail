@@ -4,7 +4,8 @@ Draft Model
 SQLAlchemy model for draft replies.
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Text, Boolean, ForeignKey, Enum, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 import enum
@@ -40,14 +41,14 @@ class Draft(Base):
     """Draft reply storage."""
     __tablename__ = "drafts"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     thread_id = Column(String, ForeignKey("threads.id"), nullable=False, index=True)
     
     reply_to_email_id = Column(String, ForeignKey("emails.id"), nullable=True)
     
     # Draft content
-    tone = Column(Enum(DraftTone), default=DraftTone.PROFESSIONAL)
+    tone = Column(Enum(DraftTone), default=DraftTone.PROFESSIONAL, nullable=False)
     custom_instructions = Column(Text, nullable=True)
     subject = Column(String, nullable=False)
     body = Column(Text, nullable=False)
@@ -56,7 +57,7 @@ class Draft(Base):
     tokens_used = Column(Integer, nullable=True)
     cost_cents = Column(Integer, nullable=True)
     
-    status = Column(Enum(DraftStatus), default=DraftStatus.GENERATED)
+    status = Column(Enum(DraftStatus), default=DraftStatus.GENERATED, nullable=False)
     user_edited = Column(Boolean, default=False)
     
     copied_at = Column(DateTime, nullable=True)
@@ -65,13 +66,13 @@ class Draft(Base):
     feedback = Column(Enum(DraftFeedback), nullable=True)
     feedback_comment = Column(Text, nullable=True)
     
-    metadata_json = Column(JSONB, default={})
+    metadata_json = Column(JSONB, default=dict)
     version = Column(Integer, default=0)
     
     # Timestamps
     deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed via migration

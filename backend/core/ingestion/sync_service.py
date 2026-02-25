@@ -6,7 +6,7 @@ Orchestrates the fetching and storage of emails.
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from contracts import EmailThreadV1
@@ -71,7 +71,7 @@ class IngestionService:
         # If stuck in syncing for > 5 minutes, assume failed and reset (simple recovery)
         from models.connected_account import SyncStatus
         if account.sync_status == SyncStatus.SYNCING:
-             if account.last_sync_at and (datetime.utcnow() - account.last_sync_at).total_seconds() < 300:
+             if account.last_sync_at and (datetime.now(timezone.utc) - account.last_sync_at).total_seconds() < 300:
                  logger.info(f"Account {account.id} is already syncing. Skipping.")
                  return
              logger.warning(f"Account {account.id} stuck in syncing. Resetting.")
@@ -86,9 +86,9 @@ class IngestionService:
 
         try:
             # 1. Update State
-            account.sync_status = "syncing"
+            account.sync_status = SyncStatus.SYNCING
             account.sync_error = None
-            account.last_sync_at = datetime.utcnow() # Mark start time
+            account.last_sync_at = datetime.now(timezone.utc) # Mark start time
             await self.db.commit()
 
             # 2. Get Secure Token
@@ -145,7 +145,7 @@ class IngestionService:
             account.sync_status = SyncStatus.IDLE
             account.initial_sync_done = True
             account.last_history_id = current_history_id
-            account.last_sync_at = datetime.utcnow()
+            account.last_sync_at = datetime.now(timezone.utc)
             await self.db.commit()
 
             # 7. Setup Real-time Webhooks (if configured)
@@ -186,6 +186,7 @@ class IngestionService:
         Upsert thread and its messages/attachments.
         """
         # 3a. Upsert Thread
+        attachments_to_index = []
         stmt = select(Thread).where(
             Thread.user_id == user_id, 
             Thread.external_id == contract.external_id
@@ -199,7 +200,7 @@ class IngestionService:
                 user_id=user_id,
                 external_id=contract.external_id,
                 provider=contract.provider,
-                created_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc)
             )
             self.db.add(thread)
         
@@ -207,7 +208,7 @@ class IngestionService:
         thread.subject = contract.subject
         thread.participants = contract.participants
         thread.last_email_at = contract.last_updated
-        thread.last_synced_at = datetime.utcnow()
+        thread.last_synced_at = datetime.now(timezone.utc)
         
         # Meta (New)
         thread.labels = contract.labels
@@ -248,8 +249,10 @@ class IngestionService:
                             is_from_user=msg_contract.is_from_user, 
                             sent_at=msg_contract.sent_at,
                             received_at=msg_contract.received_at, # Using correct mapping
-                            has_attachments=len(contract.attachments) > 0,
-                            created_at=datetime.utcnow()
+                            has_attachments=any(att.message_id == msg_contract.message_id for att in getattr(contract, "attachments", [])),
+                            attachment_count=sum(1 for att in getattr(contract, "attachments", []) if att.message_id == msg_contract.message_id),
+                            total_attachment_size_bytes=sum(att.size_bytes for att in getattr(contract, "attachments", []) if att.message_id == msg_contract.message_id),
+                            created_at=datetime.now(timezone.utc)
                         )
                         self.db.add(msg)
             except Exception as e:
@@ -306,14 +309,22 @@ class IngestionService:
                 self.db.add(att)
                 await self.db.flush() # Ensure it gets an ID and is queryable in this transaction
                 
-                # Kick off the extraction and advanced hybrid RAG routing logic immediately
-                from core.ingestion.attachment_extractor import index_attachment
-                await index_attachment(att.id, user_id, self.db)
+                # Defer vector indexing until database commit ensures safe retrieval
+                attachments_to_index.append(att.id)
 
             elif storage_path and not att.storage_path:
                 att.storage_path = storage_path
         
         await self.db.commit()
+
+        # Fire indexed attachments safely outside active SQL commit boundaries
+        if attachments_to_index:
+            from core.ingestion.attachment_extractor import index_attachment
+            for att_id in attachments_to_index:
+                try:
+                    await index_attachment(att_id, user_id, getattr(self, "db", None) or self.db)
+                except Exception as e:
+                    logger.error(f"Failed to safe-trigger vector indexer for {att_id}: {e}")
 
         # Trigger AI intelligence pipeline in background (non-blocking)
         import asyncio

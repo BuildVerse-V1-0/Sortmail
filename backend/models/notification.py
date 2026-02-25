@@ -4,7 +4,8 @@ Notification Models
 SQLAlchemy models for notifications and preferences (Module 9).
 """
 
-from datetime import datetime, time
+from datetime import uuid
+import datetime, timezone, time
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text, Time
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -30,7 +31,7 @@ class NotificationPriority(str, enum.Enum):
 class Notification(Base):
     __tablename__ = "notifications"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     
     type = Column(Enum(NotificationType), nullable=False)
@@ -43,7 +44,7 @@ class Notification(Base):
     related_entity_type = Column(String(50), nullable=True)
     related_entity_id = Column(String, nullable=True) # UUID
     
-    priority = Column(Enum(NotificationPriority), default=NotificationPriority.NORMAL)
+    priority = Column(Enum(NotificationPriority), default=NotificationPriority.NORMAL, nullable=False)
     
     is_read = Column(Boolean, default=False)
     read_at = Column(DateTime, nullable=True)
@@ -52,9 +53,9 @@ class Notification(Base):
     dismissed_at = Column(DateTime, nullable=True)
     
     expires_at = Column(DateTime, nullable=True)
-    metadata_json = Column(JSONB, default={})
+    metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed via migration
@@ -64,18 +65,18 @@ class Notification(Base):
 class NotificationPreferences(Base):
     __tablename__ = "notification_preferences"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False)
     
     email_enabled = Column(Boolean, default=True)
     push_enabled = Column(Boolean, default=False)
     in_app_enabled = Column(Boolean, default=True)
     
-    channels = Column(JSONB, default={}) # Per-type prefs
+    channels = Column(JSONB, default=dict) # Per-type prefs
     
     quiet_hours_start = Column(Time, nullable=True)
     quiet_hours_end = Column(Time, nullable=True)
     quiet_hours_timezone = Column(String(50), nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

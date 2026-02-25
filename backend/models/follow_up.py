@@ -4,7 +4,8 @@ Waiting For Model
 SQLAlchemy model for follow-up tracking.
 """
 
-from datetime import datetime
+from datetime import uuid
+import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 import enum
@@ -24,7 +25,7 @@ class FollowUp(Base):
     """Track emails waiting for reply."""
     __tablename__ = "follow_ups"
     
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     thread_id = Column(String, ForeignKey("threads.id"), nullable=False, index=True)
     email_id = Column(String, ForeignKey("emails.id"), nullable=True) # specific message
@@ -33,18 +34,18 @@ class FollowUp(Base):
     reminder_at = Column(DateTime, nullable=True)
     reminder_sent = Column(Boolean, default=False)
     
-    status = Column(Enum(FollowUpStatus), default=FollowUpStatus.WAITING)
+    status = Column(Enum(FollowUpStatus), default=FollowUpStatus.WAITING, nullable=False)
     snoozed_until = Column(DateTime, nullable=True)
     reply_received_at = Column(DateTime, nullable=True)
     
     auto_detected = Column(Boolean, default=False)
     detection_confidence = Column(Integer, nullable=True) # Scaled decimal
     
-    metadata_json = Column(JSONB, default={})
+    metadata_json = Column(JSONB, default=dict)
     
     deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('thread_id', 'user_id', 'deleted_at', name='unique_thread_user_followup'),

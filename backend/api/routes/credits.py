@@ -68,7 +68,7 @@ async def get_my_credits(
 
 @router.get("/me/transactions", response_model=List[TransactionOut])
 async def get_my_transactions(
-    limit: int = Query(default=25, le=100),
+    limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     type_filter: Optional[str] = Query(default=None, alias="type"),
     current_user: User = Depends(get_current_user),
