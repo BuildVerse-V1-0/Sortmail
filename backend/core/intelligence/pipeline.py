@@ -14,8 +14,6 @@ Flow:
   4. Save enriched intel back to Thread model (intel_json, summary, intent, urgency_score)
   5. Auto-create Tasks from action_items (no duplicates)
   6. Publish SSE event so frontend refreshes instantly
-
-Cost: one Gemini Flash call (~₹0.04–0.30) per thread
 """
 
 import logging

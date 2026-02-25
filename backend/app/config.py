@@ -55,10 +55,21 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRY_HOURS: int = 24
     
-    # LLM
     LLM_PROVIDER: str = "gemini"  # "gemini" or "openai"
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    
+    # Chroma Cloud
+    CHROMA_API_KEY: str = ""
+    CHROMA_TENANT: str = ""
+    CHROMA_DATABASE: str = ""
+    
+    # S3 Storage (Tier 3 Cold Storage)
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION_NAME: str = "us-east-1"
+    S3_BUCKET_NAME: str = ""
+    S3_ENDPOINT_URL: str = "" # Supported for Cloudflare R2 compatibility
     
     # Security
     ENCRYPTION_KEY: str = "" # Required in production (32-byte base64)

@@ -134,3 +134,26 @@ app.include_router(admin_users.router, prefix="/api/admin", tags=["admin"])
 app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
 
+# ─────────────────────────────────────────────────────────────────────────
+# TESTING - ChromaDB Batch Upload
+# ─────────────────────────────────────────────────────────────────────────
+from core.storage.vector_store import get_chroma_collection
+from pydantic import BaseModel
+from fastapi import HTTPException, Depends
+
+class RequestBody(BaseModel):
+    ids: list[str]
+    documents: list[str]
+    metadatas: list[dict]
+
+@app.post("/api/documents/", tags=["testing"])
+async def add_documents(request: RequestBody, col=Depends(get_chroma_collection)):
+    try:
+        col.add(
+            ids=request.ids,
+            documents=request.documents,
+            metadatas=request.metadatas
+        )
+        return {"message": "Documents added successfully", "ids": request.ids}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

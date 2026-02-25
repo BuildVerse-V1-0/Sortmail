@@ -67,6 +67,10 @@ class EmailMessage(BaseModel):
     body_text: str = Field(
         description="Plain text version of email body"
     )
+    body_html: str = Field(
+        default="",
+        description="HTML version of email body"
+    )
     sent_at: datetime = Field(
         description="When the email was sent"
     )

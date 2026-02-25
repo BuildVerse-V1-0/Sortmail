@@ -119,3 +119,82 @@ SUPPORTED_MIME_TYPES = [
 def is_supported_attachment(mime_type: str) -> bool:
     """Check if attachment type is supported for processing."""
     return mime_type in SUPPORTED_MIME_TYPES
+
+async def index_attachment(attachment_id: str, user_id: str, db):
+    """
+    Extract text from a downloaded attachment and route it via the RAG Hybrid Context Strategy.
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy import select
+    from models.attachment import Attachment
+    import logging
+    
+    logger = logging.getLogger(__name__)
+
+    stmt = select(Attachment).where(Attachment.id == attachment_id)
+    result = await db.execute(stmt)
+    att = result.scalars().first()
+    
+    if not att or not att.storage_path:
+        logger.warning(f"Attachment {attachment_id} missing or lacks storage path.")
+        return
+        
+    logger.info(f"Extracting text from attachment: {att.filename}")
+    text = ""
+    
+    try:
+        if "pdf" in att.content_type.lower():
+            text = await _extract_pdf(att.storage_path)
+        elif "word" in att.content_type.lower() or "document" in att.content_type.lower():
+            text = await _extract_docx(att.storage_path)
+        elif "powerpoint" in att.content_type.lower() or "presentation" in att.content_type.lower():
+            text = await _extract_pptx(att.storage_path)
+    except Exception as e:
+        logger.error(f"Text extraction failed for {att.filename}: {e}")
+        
+    if text:
+        # Pre-allocate for the upcoming strategy call
+        att.extracted_text = text
+        await db.commit()
+        
+    # Hook into intelligent router strategy
+    try:
+        from core.rag.attachment_strategy import AttachmentContextStrategy
+        await AttachmentContextStrategy.process_attachment(att, user_id, db)
+    except Exception as e:
+        logger.error(f"Context routing failed for {att.filename}: {e}")
+
+async def _extract_pdf(path: str) -> str:
+    import asyncio
+    def _read():
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(path)
+            return "\n".join([page.extract_text() or "" for page in reader.pages])
+        except Exception:
+            return ""
+    return await asyncio.to_thread(_read)
+
+async def _extract_docx(path: str) -> str:
+    import asyncio
+    def _read():
+        try:
+            from docx import Document
+            doc = Document(path)
+            return "\n".join(p.text for p in doc.paragraphs)
+        except Exception:
+            return ""
+    return await asyncio.to_thread(_read)
+
+async def _extract_pptx(path: str) -> str:
+    import asyncio
+    def _read():
+        try:
+            from pptx import Presentation
+            prs = Presentation(path)
+            return "\n".join([
+                shape.text for slide in prs.slides for shape in slide.shapes if hasattr(shape, "text")
+            ])
+        except Exception:
+            return ""
+    return await asyncio.to_thread(_read)

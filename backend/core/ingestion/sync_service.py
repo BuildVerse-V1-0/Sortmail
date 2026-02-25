@@ -244,6 +244,7 @@ class IngestionService:
                             recipients=recipients,
                             subject=msg_contract.subject,
                             body_plain=msg_contract.body_text,
+                            body_html=msg_contract.body_html,
                             is_from_user=msg_contract.is_from_user, 
                             sent_at=msg_contract.sent_at,
                             received_at=msg_contract.received_at, # Using correct mapping
@@ -288,7 +289,6 @@ class IngestionService:
                     logger.error(f"Failed to download attachment {att_contract.attachment_id}: {e}")
 
             if not att:
-                # Make sure to import StorageProvider and AttachmentStatus if not already
                 from models.attachment import StorageProvider, AttachmentStatus
                 
                 att = Attachment(
@@ -299,12 +299,17 @@ class IngestionService:
                     filename_sanitized=att_contract.filename,
                     content_type=att_contract.mime_type,
                     size_bytes=att_contract.size_bytes,
+                    storage_provider=StorageProvider.S3,
                     storage_path=storage_path,
-                    storage_provider=StorageProvider.S3, # Default/local for now
-                    status=AttachmentStatus.PENDING,
-                    created_at=datetime.utcnow()
+                    status=AttachmentStatus.PENDING
                 )
                 self.db.add(att)
+                await self.db.flush() # Ensure it gets an ID and is queryable in this transaction
+                
+                # Kick off the extraction and advanced hybrid RAG routing logic immediately
+                from core.ingestion.attachment_extractor import index_attachment
+                await index_attachment(att.id, user_id, self.db)
+
             elif storage_path and not att.storage_path:
                 att.storage_path = storage_path
         

@@ -210,7 +210,7 @@ def _parse_gmail_message(msg_resource: dict) -> Tuple[dict, List[dict]]:
         from_address = "unknown-sender@sortmail.internal"
 
     # Extract body with enhanced MIME recursion
-    body_text = _extract_body(payload)
+    body_text, body_html = _extract_body(payload)
     
     # Extract attachments with size limits
     attachments = _extract_attachments_metadata(payload, msg_resource.get('id'))
@@ -244,6 +244,7 @@ def _parse_gmail_message(msg_resource: dict) -> Tuple[dict, List[dict]]:
         'cc': [addr.strip() for addr in header_map.get('cc', '').split(',') if addr.strip()],
         'subject': header_map.get('subject', ''),
         'body_text': body_text,
+        'body_html': body_html,
         'sent_at': sent_at,
         'received_at': received_at,
         'is_from_user': 'SENT' in msg_resource.get('labelIds', []),
@@ -253,46 +254,53 @@ def _parse_gmail_message(msg_resource: dict) -> Tuple[dict, List[dict]]:
     return parsed_msg, attachments
 
 
-def _extract_body(payload: dict) -> str:
-    """Recursively extract text body from multipart payload."""
+def _extract_body(payload: dict) -> Tuple[str, str]:
+    """Recursively extract plain text and HTML body from multipart payload.
+    Returns: (body_text, body_html)
+    """
     import base64
-    from core.security.sanitization import sanitize_email_html
     
-    body = ""
+    body_text = ""
+    body_html = ""
     mime_type = payload.get('mimeType')
     
-    # Direct Key for plain text
+    # Direct Key
     if mime_type == 'text/plain':
         data = payload.get('body', {}).get('data')
         if data:
-            return base64.urlsafe_b64decode(data).decode('utf-8', errors='replace')
+            body_text = base64.urlsafe_b64decode(data).decode('utf-8', errors='replace')
+            return body_text, body_html
             
+    if mime_type == 'text/html':
+        data = payload.get('body', {}).get('data')
+        if data:
+            body_html = base64.urlsafe_b64decode(data).decode('utf-8', errors='replace')
+            return body_text, body_html
+
     # Multipart handling
     parts = payload.get('parts', [])
     
-    # First pass: Look for text/plain (preferred)
+    # Process sequentially: parts can be alternative (choose best) or mixed (append)
+    # Gmail usually sends multipart/alternative with text/plain and text/html
     for part in parts:
-        if part.get('mimeType') == 'text/plain':
+        p_mime = part.get('mimeType', '')
+        if p_mime == 'text/plain' and not body_text:
             data = part.get('body', {}).get('data')
             if data:
-                return base64.urlsafe_b64decode(data).decode('utf-8', errors='replace')
-    
-    # Second pass: Look for text/html (fallback)
-    for part in parts:
-        if part.get('mimeType') == 'text/html':
+                body_text = base64.urlsafe_b64decode(data).decode('utf-8', errors='replace')
+        elif p_mime == 'text/html' and not body_html:
             data = part.get('body', {}).get('data')
             if data:
-                html = base64.urlsafe_b64decode(data).decode('utf-8', errors='replace')
-                return sanitize_email_html(html)
+                # We do NOT sanitize here to preserve exact layout and styles for the UI payload layer.
+                body_html = base64.urlsafe_b64decode(data).decode('utf-8', errors='replace')
+        elif p_mime.startswith('multipart/'):
+            child_text, child_html = _extract_body(part)
+            if not body_text and child_text:
+                body_text = child_text
+            if not body_html and child_html:
+                body_html = child_html
                 
-    # Third pass: Recursion (nested multipart/alternative, multipart/related)
-    for part in parts:
-        if part.get('mimeType', '').startswith('multipart/'):
-            text = _extract_body(part)
-            if text:
-                return text
-                
-    return body
+    return body_text, body_html
 
 
 def _extract_attachments_metadata(payload: dict, message_id: str) -> List[dict]:
@@ -359,6 +367,7 @@ def normalize_email_thread(
             cc_addresses=m.get("cc", []),
             subject=m.get("subject", subject),
             body_text=m.get("body_text", ""),
+            body_html=m.get("body_html", ""),
             sent_at=m.get("sent_at", datetime.utcnow()),
             received_at=m.get("received_at", datetime.utcnow()),
             is_from_user=m.get("is_from_user", False),
