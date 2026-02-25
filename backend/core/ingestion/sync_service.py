@@ -80,6 +80,10 @@ class IngestionService:
         from core.ingestion.gmail_client import GmailClient
         from core.ingestion.email_fetcher import fetch_incremental_changes
 
+        account_id = account.id
+        user_id = account.user_id
+        provider_val = account.provider.value if hasattr(account.provider, "value") else str(account.provider)
+
         try:
             # 1. Update State
             account.sync_status = "syncing"
@@ -153,23 +157,28 @@ class IngestionService:
                 except Exception as e:
                     logger.warning(f"Failed to subscribe account {account.id} to Pub/Sub: {e}")
 
+            # 8. Trigger publish SSE
+            from api.routes.events import publish_event
+            await publish_event(user_id, {"type": "sync_complete", "provider": provider_val})
+
         except TokenRevokedError:
-            logger.error(f"Token revoked for account {account.id}")
-            account.sync_status = "revoked"
-            account.sync_error = "Access revoked"
+            logger.error(f"Token revoked for account {account_id}")
+            from sqlalchemy import update
+            stmt = update(ConnectedAccount).where(ConnectedAccount.id == account_id).values(
+                sync_status="revoked", sync_error="Access revoked"
+            )
+            await self.db.execute(stmt)
             await self.db.commit()
             
         except Exception as e:
             await self.db.rollback()
-            logger.error(f"Sync failed for account {account.id}: {e}")
-            account.sync_status = SyncStatus.FAILED
-            account.sync_error = str(e)
+            logger.error(f"Sync failed for account {account_id}: {e}")
+            from sqlalchemy import update
+            stmt = update(ConnectedAccount).where(ConnectedAccount.id == account_id).values(
+                sync_status=SyncStatus.FAILED, sync_error=str(e)
+            )
+            await self.db.execute(stmt)
             await self.db.commit()
-        finally:
-            if account.sync_status == SyncStatus.SYNCING:
-                account.sync_status = SyncStatus.FAILED
-                account.sync_error = "Unknown error occurred"
-                await self.db.commit()
 
 
     async def _save_thread(self, user_id: str, contract: EmailThreadV1, client=None):

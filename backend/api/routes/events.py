@@ -109,3 +109,16 @@ async def event_stream(
             "X-Accel-Buffering": "no",  # Disable Nginx buffering
         },
     )
+
+
+async def publish_event(user_id: str, event_data: dict):
+    """
+    Publish a real-time event to a specific user's SSE channel via Redis.
+    """
+    try:
+        r = await get_redis()
+        if r:
+            channel = f"user:{user_id}:events"
+            await r.publish(channel, json.dumps(event_data))
+    except Exception as e:
+        logger.error(f"Failed to publish SSE event to {user_id}: {e}")
