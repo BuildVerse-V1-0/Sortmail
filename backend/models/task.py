@@ -49,8 +49,8 @@ class Task(Base):
     # Task details
     title = Column(String, nullable=False)
     description = Column(Text)
-    status = Column(Enum(TaskStatus), default=TaskStatus.PENDING)
-    task_type = Column(Enum(TaskType), default=TaskType.GENERAL)
+    status = Column(Enum(TaskStatus, native_enum=False, length=50), default=TaskStatus.PENDING)
+    task_type = Column(Enum(TaskType, native_enum=False, length=50), default=TaskType.GENERAL)
     
     # Priority
     priority_level = Column(String, nullable=True) # urgent, high, medium, low
