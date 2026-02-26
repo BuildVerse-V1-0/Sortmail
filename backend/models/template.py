@@ -4,8 +4,8 @@ Template Model
 SQLAlchemy model for email templates.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 

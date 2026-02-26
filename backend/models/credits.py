@@ -5,8 +5,8 @@ SQLAlchemy models for the Credit System (Module 8).
 Matches Production Grade Schema.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, BigInteger, UniqueConstraint, Date, Text
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import relationship

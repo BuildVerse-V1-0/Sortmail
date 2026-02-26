@@ -4,8 +4,8 @@ Document Model
 SQLAlchemy model for vector-indexed documents.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 

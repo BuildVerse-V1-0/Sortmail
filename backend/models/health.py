@@ -4,8 +4,8 @@ System Health & Monitoring Models
 SQLAlchemy models for health checks, error logs, and rate tracking (Module 16).
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text
 from sqlalchemy.dialects.postgresql import JSONB
 

@@ -4,8 +4,8 @@ Jobs & Queues Models
 SQLAlchemy models for background jobs and scheduled tasks (Module 15).
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB
 

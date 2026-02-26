@@ -4,8 +4,8 @@ Billing Models
 SQLAlchemy models for subscriptions and invoices (Module 8 Part 2).
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Date, Text
 from sqlalchemy.dialects.postgresql import JSONB
 

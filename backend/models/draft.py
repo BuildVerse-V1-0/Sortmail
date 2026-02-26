@@ -4,8 +4,8 @@ Draft Model
 SQLAlchemy model for draft replies.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Text, Boolean, ForeignKey, Enum, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 import enum

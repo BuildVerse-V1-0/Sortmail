@@ -4,8 +4,8 @@ Waiting For Model
 SQLAlchemy model for follow-up tracking.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 import enum

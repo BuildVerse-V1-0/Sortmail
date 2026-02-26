@@ -4,8 +4,8 @@ Experiments & Feature Flags Models
 SQLAlchemy models for feature flags and A/B testing (Module 13).
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 

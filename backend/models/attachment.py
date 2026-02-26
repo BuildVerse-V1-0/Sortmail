@@ -4,8 +4,8 @@ Attachment Model
 SQLAlchemy model for email attachments.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Text, Enum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 import enum

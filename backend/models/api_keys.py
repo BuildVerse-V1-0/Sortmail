@@ -4,8 +4,8 @@ API Keys Models
 SQLAlchemy models for developer API keys (Module 20).
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text, BigInteger
 from sqlalchemy.dialects.postgresql import ARRAY
 

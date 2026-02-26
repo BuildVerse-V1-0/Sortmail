@@ -4,8 +4,8 @@ Search & Indexing Models
 SQLAlchemy models for search queries and saved searches (Module 17).
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text
 from sqlalchemy.dialects.postgresql import JSONB
 

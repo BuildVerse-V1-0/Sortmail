@@ -4,8 +4,8 @@ Connected Account Model
 SQLAlchemy model for OAuth provider connections.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, ForeignKey, Enum, UniqueConstraint, Boolean, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 import enum

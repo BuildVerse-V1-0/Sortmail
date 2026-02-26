@@ -4,8 +4,8 @@ Task Model
 SQLAlchemy model for tasks table.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Enum, Boolean, Date
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 import enum

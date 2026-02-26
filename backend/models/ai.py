@@ -4,8 +4,8 @@ AI Core Models
 SQLAlchemy models for AI processing queue and usage tracking.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Enum, Boolean, BigInteger, Date, UniqueConstraint, Float
 from sqlalchemy.dialects.postgresql import JSONB
 import enum

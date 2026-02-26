@@ -4,8 +4,8 @@ Retention & Compliance Models
 SQLAlchemy models for data retention, GDPR requests, and consent records (Module 14).
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB
 

@@ -4,8 +4,8 @@ Email Model
 SQLAlchemy model for raw email storage (if needed).
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Text, Boolean, ForeignKey, Integer, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 

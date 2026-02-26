@@ -4,8 +4,8 @@ VIP Domain Model
 SQLAlchemy model for user-configured VIP domains.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, ForeignKey, UniqueConstraint
 
 from core.storage import Base

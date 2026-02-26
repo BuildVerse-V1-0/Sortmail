@@ -4,8 +4,8 @@ Analytics Models
 SQLAlchemy models for user activity and system analytics (Module 11).
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text, Date, BigInteger
 from sqlalchemy.dialects.postgresql import JSONB
 

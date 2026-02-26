@@ -4,8 +4,8 @@ Thread Model
 SQLAlchemy model for email threads.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Boolean, Enum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 import enum

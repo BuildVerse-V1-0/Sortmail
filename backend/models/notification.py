@@ -4,8 +4,8 @@ Notification Models
 SQLAlchemy models for notifications and preferences (Module 9).
 """
 
-from datetime import uuid
-import datetime, timezone, time
+import uuid
+from datetime import datetime, timezone, time
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, Enum, Text, Time
 from sqlalchemy.dialects.postgresql import JSONB
 

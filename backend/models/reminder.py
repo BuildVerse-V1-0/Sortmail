@@ -4,8 +4,8 @@ Reminder Model
 SQLAlchemy model for task reminders.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Boolean, Text, ForeignKey
 
 from core.storage import Base

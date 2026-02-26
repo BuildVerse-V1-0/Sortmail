@@ -5,7 +5,7 @@ SQLAlchemy model for users table.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime from datetime import datetime, timezone
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship

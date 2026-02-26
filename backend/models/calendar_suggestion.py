@@ -4,8 +4,8 @@ Calendar Suggestion Model
 SQLAlchemy model for calendar event suggestions.
 """
 
-from datetime import uuid
-import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Boolean, Text, ForeignKey, Integer, Enum, Date
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 import enum
