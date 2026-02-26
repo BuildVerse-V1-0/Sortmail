@@ -61,6 +61,7 @@ Let me know if you have any questions.
 Best,
 Sarah""",
         sent_at=datetime.now(timezone.utc) - timedelta(hours=hours_ago),
+        received_at=datetime.now(timezone.utc) - timedelta(hours=hours_ago) + timedelta(minutes=1),
         is_from_user=is_from_user,
     )
 
@@ -141,6 +142,7 @@ def create_mock_thread_intel() -> ThreadIntelV1:
         ],
         model_version="gemini-1.5-pro",
         processed_at=datetime.now(timezone.utc),
+        schema_version="1.0",
     )
 
 
@@ -197,6 +199,7 @@ Best regards""",
         references_deadlines=True,
         created_at=datetime.now(timezone.utc),
         model_version="gemini-1.5-pro",
+        schema_version="1.0",
     )
 
 

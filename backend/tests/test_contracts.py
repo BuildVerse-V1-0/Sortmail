@@ -108,6 +108,7 @@ class TestThreadIntelV1:
                 suggested_reply_points=[],
                 model_version="test",
                 processed_at=datetime.now(timezone.utc),
+                schema_version="1.0",
             )
             assert intel.intent == intent
     
@@ -124,6 +125,7 @@ class TestThreadIntelV1:
             attachment_summaries=[],
             suggested_reply_points=[],
             model_version="test",
+            schema_version="1.0",
         )
         assert intel.main_ask is None
         assert intel.decision_needed is None
@@ -217,6 +219,7 @@ class TestContractFlow:
             attachment_summaries=[],
             suggested_reply_points=[],
             model_version="test",
+            schema_version="1.0",
         )
         
         assert intel.thread_id == thread.thread_id
