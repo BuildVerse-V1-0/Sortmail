@@ -60,8 +60,8 @@ class Draft(Base):
     status = Column(Enum(DraftStatus), default=DraftStatus.GENERATED, nullable=False)
     user_edited = Column(Boolean, default=False)
     
-    copied_at = Column(DateTime, nullable=True)
-    sent_at = Column(DateTime, nullable=True)
+    copied_at = Column(DateTime(timezone=True), nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
     
     feedback = Column(Enum(DraftFeedback), nullable=True)
     feedback_comment = Column(Text, nullable=True)
@@ -70,9 +70,9 @@ class Draft(Base):
     version = Column(Integer, default=0)
     
     # Timestamps
-    deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed via migration

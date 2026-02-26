@@ -30,22 +30,22 @@ class FollowUp(Base):
     thread_id = Column(String, ForeignKey("threads.id"), nullable=False, index=True)
     email_id = Column(String, ForeignKey("emails.id"), nullable=True) # specific message
     
-    expected_reply_by = Column(DateTime, nullable=True)
-    reminder_at = Column(DateTime, nullable=True)
+    expected_reply_by = Column(DateTime(timezone=True), nullable=True)
+    reminder_at = Column(DateTime(timezone=True), nullable=True)
     reminder_sent = Column(Boolean, default=False)
     
     status = Column(Enum(FollowUpStatus), default=FollowUpStatus.WAITING, nullable=False)
-    snoozed_until = Column(DateTime, nullable=True)
-    reply_received_at = Column(DateTime, nullable=True)
+    snoozed_until = Column(DateTime(timezone=True), nullable=True)
+    reply_received_at = Column(DateTime(timezone=True), nullable=True)
     
     auto_detected = Column(Boolean, default=False)
     detection_confidence = Column(Integer, nullable=True) # Scaled decimal
     
     metadata_json = Column(JSONB, default=dict)
     
-    deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('thread_id', 'user_id', 'deleted_at', name='unique_thread_user_followup'),

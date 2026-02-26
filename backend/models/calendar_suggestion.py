@@ -35,8 +35,8 @@ class CalendarSuggestion(Base):
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     suggested_date = Column(Date, nullable=True)
-    suggested_time = Column(DateTime, nullable=True) # Time or DateTime
-    suggested_end_time = Column(DateTime, nullable=True)
+    suggested_time = Column(DateTime(timezone=True), nullable=True) # Time or DateTime
+    suggested_end_time = Column(DateTime(timezone=True), nullable=True)
     suggested_timezone = Column(String, nullable=True)
     location = Column(String, nullable=True)
     participants = Column(ARRAY(String), default=list)
@@ -47,16 +47,16 @@ class CalendarSuggestion(Base):
     confidence_score = Column(Integer, nullable=False) # Scaled decimal
     status = Column(Enum(CalendarSuggestionStatus), default=CalendarSuggestionStatus.SUGGESTED, nullable=False)
     
-    accepted_at = Column(DateTime, nullable=True)
-    dismissed_at = Column(DateTime, nullable=True)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    dismissed_at = Column(DateTime(timezone=True), nullable=True)
     external_calendar_event_id = Column(String, nullable=True)
     
     metadata_json = Column(JSONB, default=dict)
     
     # Timestamps
-    deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed in migration

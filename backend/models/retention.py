@@ -56,8 +56,8 @@ class DataRetentionPolicy(Base):
     
     is_active = Column(Boolean, default=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class GDPRRequest(Base):
@@ -69,20 +69,20 @@ class GDPRRequest(Base):
     request_type = Column(Enum(GDPRRequestType), nullable=False)
     status = Column(Enum(GDPRRequestStatus), default=GDPRRequestStatus.PENDING, nullable=False)
     
-    requested_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    completed_at = Column(DateTime, nullable=True)
+    requested_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     
     export_file_url = Column(Text, nullable=True)
-    export_expires_at = Column(DateTime, nullable=True)
+    export_expires_at = Column(DateTime(timezone=True), nullable=True)
     
     deletion_confirmed = Column(Boolean, default=False)
-    deletion_completed_at = Column(DateTime, nullable=True)
+    deletion_completed_at = Column(DateTime(timezone=True), nullable=True)
     
     admin_notes = Column(Text, nullable=True)
     metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed via migration
@@ -103,7 +103,7 @@ class ConsentRecord(Base):
     ip_address = Column(String(45), nullable=False)
     user_agent = Column(Text, nullable=False)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed via migration

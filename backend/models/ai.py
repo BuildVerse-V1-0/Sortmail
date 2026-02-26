@@ -53,20 +53,20 @@ class AIProcessingQueue(Base):
     attempts = Column(Integer, default=0)
     max_attempts = Column(Integer, default=3)
     
-    reserved_at = Column(DateTime, nullable=True)
+    reserved_at = Column(DateTime(timezone=True), nullable=True)
     reserved_by_worker = Column(String, nullable=True)
-    reservation_expires_at = Column(DateTime, nullable=True)
+    reservation_expires_at = Column(DateTime(timezone=True), nullable=True)
     
-    completed_at = Column(DateTime, nullable=True)
-    failed_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    failed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)
     
     input_context = Column(JSONB, nullable=True)
     result = Column(JSONB, nullable=True)
     metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes are complex to define in SQLAlchemy inline sometimes, usually better in migration script via SQL,
@@ -104,7 +104,7 @@ class AIUsageLog(Base):
     
     metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class AIUsageDailySummary(Base):
@@ -126,7 +126,7 @@ class AIUsageDailySummary(Base):
     cache_hit_rate = Column(Float, nullable=True) # Stored as percentage
     error_rate = Column(Float, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('date', 'user_id', 'operation_type', name='unique_daily_usage'),

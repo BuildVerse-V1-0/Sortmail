@@ -64,10 +64,10 @@ class Task(Base):
     
     # Scheduling
     due_date = Column(Date, nullable=True)
-    due_time = Column(DateTime, nullable=True) # Time object or DateTime
-    reminder_at = Column(DateTime, nullable=True)
+    due_time = Column(DateTime(timezone=True), nullable=True) # Time object or DateTime
+    reminder_at = Column(DateTime(timezone=True), nullable=True)
     reminder_sent = Column(Boolean, default=False)
-    completed_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     
     assigned_to_user_id = Column(String, ForeignKey("users.id"), nullable=True)
     tags = Column(ARRAY(String), default=list)
@@ -76,9 +76,9 @@ class Task(Base):
     version = Column(Integer, default=0)
     
     # Timestamps
-    deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes are managed via migration mainly

@@ -35,19 +35,19 @@ class Job(Base):
     attempts = Column(Integer, default=0)
     max_attempts = Column(Integer, default=3)
     
-    reserved_at = Column(DateTime, nullable=True)
+    reserved_at = Column(DateTime(timezone=True), nullable=True)
     reserved_by_worker = Column(String(100), nullable=True)
-    reservation_expires_at = Column(DateTime, nullable=True)
+    reservation_expires_at = Column(DateTime(timezone=True), nullable=True)
     
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
-    failed_at = Column(DateTime, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    failed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)
     
-    scheduled_for = Column(DateTime, nullable=True) # Delayed jobs
+    scheduled_for = Column(DateTime(timezone=True), nullable=True) # Delayed jobs
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed via migration
@@ -65,12 +65,12 @@ class ScheduledJob(Base):
     payload_template = Column(JSONB, nullable=False)
     
     is_active = Column(Boolean, default=True)
-    last_run_at = Column(DateTime, nullable=True)
-    next_run_at = Column(DateTime, nullable=False)
+    last_run_at = Column(DateTime(timezone=True), nullable=True)
+    next_run_at = Column(DateTime(timezone=True), nullable=False)
     
     run_count = Column(BigInteger, default=0)
     failure_count = Column(Integer, default=0)
     last_error = Column(Text, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

@@ -46,7 +46,7 @@ class ConnectedAccount(Base):
     # Tokens (encrypt in production!)
     access_token = Column(String, nullable=False) # In prod: access_token_encrypted
     refresh_token = Column(String) # In prod: refresh_token_encrypted
-    token_expires_at = Column(DateTime)
+    token_expires_at = Column(DateTime(timezone=True))
     scopes = Column(String, nullable=False) # Stored as comma-separated or JSON if using JSONB
     
     # Status
@@ -55,7 +55,7 @@ class ConnectedAccount(Base):
     error_message = Column(String, nullable=True)
     
     # Sync tracking
-    last_sync_at = Column(DateTime)
+    last_sync_at = Column(DateTime(timezone=True))
     last_history_id = Column(String)
     sync_status = Column(Enum(SyncStatus, native_enum=False, length=50), default=SyncStatus.IDLE, nullable=False)
     sync_error = Column(String)
@@ -65,14 +65,14 @@ class ConnectedAccount(Base):
     sync_window_days = Column(Integer, default=90)
     sync_enabled = Column(Boolean, default=True)
     sync_frequency_minutes = Column(Integer, default=15)
-    last_watch_expires_at = Column(DateTime, nullable=True)
+    last_watch_expires_at = Column(DateTime(timezone=True), nullable=True)
     
     metadata_json = Column(JSONB, default=dict)
     
     # Timestamps & Soft Delete
-    deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('user_id', 'provider', 'deleted_at', name='unique_user_provider_deleted'),
@@ -94,8 +94,8 @@ class OAuthStateToken(Base):
     user_agent = Column(String, nullable=False)
     redirect_after_auth = Column(String, nullable=True)
     
-    expires_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
     consumed = Column(Boolean, default=False)
-    consumed_at = Column(DateTime, nullable=True)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

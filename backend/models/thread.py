@@ -44,10 +44,10 @@ class Thread(Base):
     intel_json = Column(JSONB)  # Full ThreadIntelV1 cache
     
     # Timestamps
-    last_email_at = Column(DateTime)
-    last_synced_at = Column(DateTime)
-    intel_generated_at = Column(DateTime)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_email_at = Column(DateTime(timezone=True))
+    last_synced_at = Column(DateTime(timezone=True))
+    intel_generated_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class Message(Base):
@@ -65,7 +65,7 @@ class Message(Base):
     
     # Meta
     is_from_user = Column(String, default=False)
-    sent_at = Column(DateTime, nullable=False)
+    sent_at = Column(DateTime(timezone=True), nullable=False)
     
     # Timestamps
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

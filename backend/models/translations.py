@@ -22,8 +22,8 @@ class Translation(Base):
     context = Column(String(255), nullable=True)
     is_verified = Column(Boolean, default=False)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('key', 'locale', name='uq_translation_key_locale'),

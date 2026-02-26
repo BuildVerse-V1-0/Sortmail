@@ -20,9 +20,9 @@ class Reminder(Base):
     task_id = Column(String, ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
     
     # Reminder details
-    remind_at = Column(DateTime, nullable=False, index=True)
+    remind_at = Column(DateTime(timezone=True), nullable=False, index=True)
     is_triggered = Column(Boolean, default=False)
     message = Column(Text)
     
     # Timestamps
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

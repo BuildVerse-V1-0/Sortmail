@@ -69,11 +69,11 @@ class AdminUser(Base):
     can_manage_users = Column(Boolean, default=False)
     can_manage_billing = Column(Boolean, default=False)
     
-    last_admin_action_at = Column(DateTime, nullable=True)
+    last_admin_action_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class AdminAuditLog(Base):
@@ -92,7 +92,7 @@ class AdminAuditLog(Base):
     ip_address = Column(String(45), nullable=False)
     user_agent = Column(Text, nullable=False)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class AbuseReport(Base):
@@ -111,10 +111,10 @@ class AbuseReport(Base):
     status = Column(Enum(AbuseReportStatus), default=AbuseReportStatus.PENDING, nullable=False)
     assigned_to_admin_id = Column(String, ForeignKey("admin_users.id"), nullable=True)
     resolution_notes = Column(Text, nullable=True)
-    resolved_at = Column(DateTime, nullable=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
     
     auto_detected = Column(Boolean, default=False)
     detection_rule = Column(String(100), nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

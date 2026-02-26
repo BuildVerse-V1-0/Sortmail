@@ -52,19 +52,19 @@ class Subscription(Base):
     plan = Column(Enum(SubscriptionPlan), nullable=False)
     status = Column(Enum(SubscriptionStatus), nullable=False, index=True)
     
-    current_period_start = Column(DateTime, nullable=False)
-    current_period_end = Column(DateTime, nullable=False)
+    current_period_start = Column(DateTime(timezone=True), nullable=False)
+    current_period_end = Column(DateTime(timezone=True), nullable=False)
     
     cancel_at_period_end = Column(Boolean, default=False)
-    canceled_at = Column(DateTime, nullable=True)
+    canceled_at = Column(DateTime(timezone=True), nullable=True)
     
-    trial_start = Column(DateTime, nullable=True)
-    trial_end = Column(DateTime, nullable=True)
+    trial_start = Column(DateTime(timezone=True), nullable=True)
+    trial_end = Column(DateTime(timezone=True), nullable=True)
     
     metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Invoice(Base):
@@ -81,8 +81,8 @@ class Invoice(Base):
     status = Column(Enum(InvoiceStatus), default=InvoiceStatus.DRAFT, index=True, nullable=False)
     
     invoice_pdf_url = Column(Text, nullable=True)
-    paid_at = Column(DateTime, nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
     
     metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

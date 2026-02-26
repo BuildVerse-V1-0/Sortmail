@@ -55,7 +55,7 @@ class HealthCheck(Base):
     response_time_ms = Column(Integer, nullable=True)
     error_message = Column(Text, nullable=True)
     
-    checked_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    checked_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     metadata_json = Column(JSONB, default=dict)
 
 
@@ -78,9 +78,9 @@ class ErrorLog(Base):
     context = Column(JSONB, default=dict)
     
     resolved = Column(Boolean, default=False)
-    resolved_at = Column(DateTime, nullable=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class RateLimitViolation(Base):
@@ -99,4 +99,4 @@ class RateLimitViolation(Base):
     blocked = Column(Boolean, default=True)
     user_agent = Column(Text, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

@@ -45,8 +45,8 @@ class FeatureFlag(Base):
     
     created_by_admin_id = Column(String, ForeignKey("admin_users.id"), nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class UserFeatureOverride(Base):
@@ -60,8 +60,8 @@ class UserFeatureOverride(Base):
     reason = Column(Text, nullable=True)
     set_by_admin_id = Column(String, ForeignKey("admin_users.id"), nullable=True)
     
-    expires_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('user_id', 'feature_flag_id', name='uq_user_feature_override'),
@@ -80,15 +80,15 @@ class ABExperiment(Base):
     variants = Column(JSONB, nullable=False)
     traffic_allocation = Column(JSONB, nullable=False)
     
-    start_date = Column(DateTime, nullable=False)
-    end_date = Column(DateTime, nullable=True)
+    start_date = Column(DateTime(timezone=True), nullable=False)
+    end_date = Column(DateTime(timezone=True), nullable=True)
     status = Column(Enum(ExperimentStatus), default=ExperimentStatus.DRAFT, nullable=False)
     winning_variant = Column(String(50), nullable=True)
     
     created_by_admin_id = Column(String, ForeignKey("admin_users.id"), nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class ABExperimentAssignment(Base):
@@ -99,7 +99,7 @@ class ABExperimentAssignment(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     
     variant_key = Column(String(50), nullable=False)
-    assigned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    assigned_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('experiment_id', 'user_id', name='uq_experiment_user_assignment'),

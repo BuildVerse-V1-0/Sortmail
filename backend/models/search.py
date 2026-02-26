@@ -33,7 +33,7 @@ class SearchQuery(Base):
     clicked_result_id = Column(String, nullable=True) # UUID
     latency_ms = Column(Integer, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class SavedSearch(Base):
@@ -49,9 +49,9 @@ class SavedSearch(Base):
     is_smart_folder = Column(Boolean, default=False)
     notification_enabled = Column(Boolean, default=False)
     
-    last_used_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed via migration

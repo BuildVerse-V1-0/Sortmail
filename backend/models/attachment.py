@@ -72,11 +72,11 @@ class Attachment(Base):
     metadata_json = Column(JSONB, default=dict)
     
     # Timestamps
-    downloaded_at = Column(DateTime, nullable=True)
-    processed_at = Column(DateTime, nullable=True)
-    deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    downloaded_at = Column(DateTime(timezone=True), nullable=True)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('email_id', 'sha256_hash', name='unique_email_attachment_hash'),
@@ -101,11 +101,11 @@ class VectorDocument(Base):
     vector_db_id = Column(String, unique=True, nullable=False) # Chroma ID
     vector_db_collection = Column(String, nullable=False)
     
-    indexed_at = Column(DateTime, nullable=False)
+    indexed_at = Column(DateTime(timezone=True), nullable=False)
     metadata_json = Column(JSONB, default=dict)
     
-    deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('source_id', 'chunk_index', name='unique_document_chunk'),

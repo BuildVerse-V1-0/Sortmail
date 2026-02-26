@@ -43,7 +43,7 @@ class User(Base):
     provider = Column(Enum(EmailProvider), nullable=False)
     access_token = Column(String)
     refresh_token = Column(String)
-    token_expires_at = Column(DateTime)
+    token_expires_at = Column(DateTime(timezone=True))
     
     # Enhanced Metadata
     preferences = Column(JSONB, default=dict)
@@ -58,11 +58,11 @@ class User(Base):
     workspace_id = Column(String, nullable=True) # FK to workspaces.id
     
     # Audit
-    last_login_at = Column(DateTime, nullable=True)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
     last_login_ip = Column(String, nullable=True)
-    deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
@@ -79,10 +79,10 @@ class UserSession(Base):
     ip_address = Column(String, nullable=False)
     user_agent = Column(String, nullable=False)
     
-    expires_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
     is_revoked = Column(Boolean, default=False)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     user = relationship("User", back_populates="sessions")
 
@@ -119,7 +119,7 @@ class UserSecurityEvent(Base):
     metadata_json = Column(JSONB, default=dict)
     severity = Column(Enum(SecuritySeverity), default=SecuritySeverity.INFO, nullable=False)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class WorkspacePlan(str, enum.Enum):
@@ -147,6 +147,6 @@ class Workspace(Base):
     billing_email = Column(String, nullable=True)
     status = Column(Enum(WorkspaceStatus), default=WorkspaceStatus.ACTIVE, nullable=False)
     
-    deleted_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

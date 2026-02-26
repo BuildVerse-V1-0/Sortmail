@@ -57,21 +57,21 @@ class UserCredits(Base):
     billing_cycle_start = Column(Date, nullable=False)
     
     # Expiry & versioning
-    credits_expire_at = Column(DateTime, nullable=True)
+    credits_expire_at = Column(DateTime(timezone=True), nullable=True)
     previous_plan = Column(Enum(PlanType), nullable=True)
-    plan_changed_at = Column(DateTime, nullable=True)
+    plan_changed_at = Column(DateTime(timezone=True), nullable=True)
     
     # Rate Limiting
-    last_operation_at = Column(DateTime, nullable=True)
+    last_operation_at = Column(DateTime(timezone=True), nullable=True)
     operations_count_last_minute = Column(Integer, default=0)
     operations_count_last_hour = Column(Integer, default=0)
     
     # Metadata
-    balance_updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    balance_updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
     version = Column(Integer, default=0) # Optimistic Locking
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed via migration
@@ -92,7 +92,7 @@ class CreditTransaction(Base):
     related_entity_id = Column(String, nullable=True) # UUID
     
     status = Column(Enum(TransactionStatus), default=TransactionStatus.COMPLETED, nullable=False)
-    expires_at = Column(DateTime, nullable=True) # For reservations
+    expires_at = Column(DateTime(timezone=True), nullable=True) # For reservations
     
     # Refund tracking
     refunded_transaction_id = Column(String, ForeignKey("credit_transactions.id"), nullable=True)
@@ -108,7 +108,7 @@ class CreditTransaction(Base):
     flag_reason = Column(Text, nullable=True)
     
     metadata_json = Column(JSONB, default=dict)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class CreditPricing(Base):
@@ -124,8 +124,8 @@ class CreditPricing(Base):
     effective_from = Column(Date, nullable=False)
     effective_until = Column(Date, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class CreditPackage(Base):
@@ -143,8 +143,8 @@ class CreditPackage(Base):
     valid_from = Column(Date, nullable=True)
     valid_until = Column(Date, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class UserCreditLimits(Base):
@@ -161,8 +161,8 @@ class UserCreditLimits(Base):
     reason = Column(Text, nullable=True)
     set_by_admin_id = Column(String, ForeignKey("users.id"), nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class CreditUsageDaily(Base):
@@ -177,7 +177,7 @@ class CreditUsageDaily(Base):
     operations_count = Column(Integer, default=0)
     actual_cost_cents = Column(Integer, default=0)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('date', 'user_id', 'operation_type', name='uq_daily_usage'),

@@ -22,7 +22,7 @@ class VIPDomain(Base):
     domain = Column(String(255), nullable=False)
     
     # Timestamps
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         UniqueConstraint('user_id', 'domain', name='unique_user_domain'),

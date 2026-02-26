@@ -26,4 +26,4 @@ class Document(Base):
     doc_metadata = Column(JSONB, default=dict)
     
     # Timestamps
-    indexed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    indexed_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

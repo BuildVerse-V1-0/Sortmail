@@ -30,10 +30,10 @@ class EmailRule(Base):
     apply_to_existing = Column(Boolean, default=False)
     
     times_triggered = Column(BigInteger, default=0)
-    last_triggered_at = Column(DateTime, nullable=True)
+    last_triggered_at = Column(DateTime(timezone=True), nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class RuleExecutionLog(Base):
@@ -51,4 +51,4 @@ class RuleExecutionLog(Base):
     success = Column(Boolean, nullable=False)
     error_message = Column(Text, nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

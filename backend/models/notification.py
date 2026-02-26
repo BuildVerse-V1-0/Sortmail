@@ -47,15 +47,15 @@ class Notification(Base):
     priority = Column(Enum(NotificationPriority), default=NotificationPriority.NORMAL, nullable=False)
     
     is_read = Column(Boolean, default=False)
-    read_at = Column(DateTime, nullable=True)
+    read_at = Column(DateTime(timezone=True), nullable=True)
     
     is_dismissed = Column(Boolean, default=False)
-    dismissed_at = Column(DateTime, nullable=True)
+    dismissed_at = Column(DateTime(timezone=True), nullable=True)
     
-    expires_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
     metadata_json = Column(JSONB, default=dict)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (
         # Indexes managed via migration
@@ -78,5 +78,5 @@ class NotificationPreferences(Base):
     quiet_hours_end = Column(Time, nullable=True)
     quiet_hours_timezone = Column(String(50), nullable=True)
     
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
