@@ -62,6 +62,9 @@ async def sync_status(
         }
 
     last_sync = account.last_sync_at
+    if last_sync and last_sync.tzinfo is None:
+        last_sync = last_sync.replace(tzinfo=timezone.utc)
+
     stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=STALE_AFTER_MINUTES)
     needs_sync = (last_sync is None) or (last_sync < stale_cutoff)
 

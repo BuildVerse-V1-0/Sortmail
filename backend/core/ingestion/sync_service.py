@@ -71,7 +71,10 @@ class IngestionService:
         # If stuck in syncing for > 5 minutes, assume failed and reset (simple recovery)
         from models.connected_account import SyncStatus
         if account.sync_status == SyncStatus.SYNCING:
-             if account.last_sync_at and (datetime.now(timezone.utc) - account.last_sync_at).total_seconds() < 300:
+             last_sync = account.last_sync_at
+             if last_sync and last_sync.tzinfo is None:
+                 last_sync = last_sync.replace(tzinfo=timezone.utc)
+             if last_sync and (datetime.now(timezone.utc) - last_sync).total_seconds() < 300:
                  logger.info(f"Account {account.id} is already syncing. Skipping.")
                  return
              logger.warning(f"Account {account.id} stuck in syncing. Resetting.")

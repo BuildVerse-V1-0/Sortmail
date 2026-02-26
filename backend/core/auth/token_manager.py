@@ -52,7 +52,11 @@ async def get_valid_google_token(user_id: str) -> str:
 
         # Check expiration (refresh if < 5 mins remaining or no expiration set)
         now = datetime.now(timezone.utc)
-        if not account.token_expires_at or account.token_expires_at < now + timedelta(minutes=5):
+        token_expires = account.token_expires_at
+        if token_expires and token_expires.tzinfo is None:
+            token_expires = token_expires.replace(tzinfo=timezone.utc)
+            
+        if not token_expires or token_expires < now + timedelta(minutes=5):
             return await _refresh_google_token(db, account)
             
         # Token is valid, decrypt and return
@@ -82,7 +86,11 @@ async def _refresh_google_token(db: AsyncSession, account: ConnectedAccount) -> 
             await asyncio.sleep(0.2)
             # Re-fetch account to see if updated
             await db.refresh(account)
-            if account.token_expires_at and account.token_expires_at > datetime.now(timezone.utc) + timedelta(minutes=1):
+            token_expires = account.token_expires_at
+            if token_expires and token_expires.tzinfo is None:
+                token_expires = token_expires.replace(tzinfo=timezone.utc)
+            
+            if token_expires and token_expires > datetime.now(timezone.utc) + timedelta(minutes=1):
                 return decrypt_token(account.access_token)
         
         # If we timeout waiting, assume other process failed and we should try (or just fail)
