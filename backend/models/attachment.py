@@ -6,7 +6,7 @@ SQLAlchemy model for email attachments.
 
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Text, Enum, UniqueConstraint
+from sqlalchemy import Column, String, DateTime, Integer, BigInteger, Float, ForeignKey, Text, Enum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 import enum
 
