@@ -4,6 +4,8 @@ API Routes - Threads
 Email thread endpoints.
 """
 
+import re
+from urllib.parse import quote
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -220,6 +222,14 @@ async def get_thread(
         to_addrs = [r.get("email") for r in m.recipients if r.get("type") == "to"] if m.recipients else []
         cc_addrs = [r.get("email") for r in m.recipients if r.get("type") == "cc"] if m.recipients else []
         
+        # Sandbox image requests through proxy
+        raw_html = m.body_html or ""
+        safed_html = re.sub(
+            r'src=["\'](https?://[^"\']+)["\']',
+            lambda match: f'src="/api/proxy/image?url={quote(match.group(1), safe="")}"',
+            raw_html
+        )
+
         normalized_messages.append(
             EmailMessage(
                 message_id=m.id,
@@ -228,7 +238,7 @@ async def get_thread(
                 cc_addresses=cc_addrs,
                 subject=m.subject or "",
                 body_text=m.body_plain or "",
-                body_html=m.body_html or "",
+                body_html=safed_html,
                 sent_at=m.sent_at or m.received_at, # Fallback to received_at if sent_at is missing
                 received_at=m.received_at,
                 is_from_user=bool(m.is_from_user),
