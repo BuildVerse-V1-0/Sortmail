@@ -299,7 +299,6 @@ class IngestionService:
                 att = Attachment(
                     id=att_contract.attachment_id,
                     email_id=att_contract.message_id,  # Map message_id to email_id
-                    user_id=user_id,
                     filename=att_contract.original_filename,
                     filename_sanitized=att_contract.filename,
                     content_type=att_contract.mime_type,
