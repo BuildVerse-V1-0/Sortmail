@@ -233,6 +233,7 @@ async def get_thread(
     normalized_attachments = [
         AttachmentRef(
             attachment_id=a.id,
+            email_id=a.email_id,
             filename=a.filename,
             original_filename=a.original_filename,
             mime_type=a.mime_type,

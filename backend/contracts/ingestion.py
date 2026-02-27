@@ -21,9 +21,9 @@ class AttachmentRef(BaseModel):
     attachment_id: str = Field(
         description="Internal UUID for this attachment"
     )
-    message_id: str = Field(
+    email_id: str = Field(
         default="",
-        description="ID of the message this attachment belongs to (msg-{provider_id})"
+        description="ID of the email this attachment belongs to (msg-{provider_id})"
     )
     filename: str = Field(
         description="Smart/contextual filename (e.g., Contract_ClientA_2026.pdf)"

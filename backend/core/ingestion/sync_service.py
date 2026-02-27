@@ -251,9 +251,9 @@ class IngestionService:
                             is_from_user=msg_contract.is_from_user, 
                             sent_at=msg_contract.sent_at,
                             received_at=msg_contract.received_at, # Using correct mapping
-                            has_attachments=any(att.message_id == msg_contract.message_id for att in getattr(contract, "attachments", [])),
-                            attachment_count=sum(1 for att in getattr(contract, "attachments", []) if att.message_id == msg_contract.message_id),
-                            total_attachment_size_bytes=sum(att.size_bytes for att in getattr(contract, "attachments", []) if att.message_id == msg_contract.message_id),
+                            has_attachments=any(att.email_id == msg_contract.message_id for att in getattr(contract, "attachments", [])),
+                            attachment_count=sum(1 for att in getattr(contract, "attachments", []) if att.email_id == msg_contract.message_id),
+                            total_attachment_size_bytes=sum(att.size_bytes for att in getattr(contract, "attachments", []) if att.email_id == msg_contract.message_id),
                             created_at=datetime.now(timezone.utc)
                         )
                         self.db.add(msg)
@@ -278,7 +278,7 @@ class IngestionService:
                     # contracts uses 'msg-ID'. Gmail API expects raw ID.
                     # fetcher adds 'msg-' prefix.
                     # We need RAW message ID.
-                    raw_msg_id = att_contract.message_id.replace("msg-", "")
+                    raw_msg_id = att_contract.email_id.replace("msg-", "")
                     # Same for att_id? fetcher adds 'att-'.
                     raw_att_id = att_contract.attachment_id.replace("att-", "")
                     
@@ -298,7 +298,7 @@ class IngestionService:
                 
                 att = Attachment(
                     id=att_contract.attachment_id,
-                    email_id=att_contract.message_id,  # Map message_id to email_id
+                    email_id=att_contract.email_id,  # Map email_id safely to Postgres 
                     user_id=user_id,
                     filename=att_contract.original_filename,
                     filename_sanitized=att_contract.filename,

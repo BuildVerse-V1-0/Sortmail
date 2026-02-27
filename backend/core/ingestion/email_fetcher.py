@@ -380,7 +380,7 @@ def normalize_email_thread(
     normalized_attachments = [
         AttachmentRef(
             attachment_id=f"att-{a.get('id', '')}",
-            message_id=f"msg-{a.get('message_id', '')}",
+            email_id=f"msg-{a.get('message_id', '')}",
             filename=a.get("filename", "unknown"),
             original_filename=a.get("original_filename", a.get("filename", "unknown")),
             mime_type=a.get("mime_type", "application/octet-stream"),
