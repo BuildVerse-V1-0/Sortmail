@@ -165,6 +165,7 @@ async def google_callback(
     
     if account:
         account.access_token = enc_access_token
+        account.provider_email = user_info.email  # Explicitly sync the email
         if enc_refresh_token:
             account.refresh_token = enc_refresh_token
         account.token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=tokens.expires_in)
