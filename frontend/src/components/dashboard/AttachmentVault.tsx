@@ -3,6 +3,7 @@ import React from 'react';
 import { LegacyAttachment } from '@/types/dashboard';
 import { FileText, Image, Table, File, Download } from 'lucide-react';
 import gsap from 'gsap';
+import { api } from '@/lib/api';
 
 interface AttachmentVaultProps {
     attachments: LegacyAttachment[];
@@ -25,6 +26,24 @@ const AttachmentVault: React.FC<AttachmentVaultProps> = ({ attachments }) => {
                 { left: '-100%', opacity: 1 },
                 { left: '100%', opacity: 0, duration: 0.8, ease: "power1.inOut" }
             );
+        }
+    };
+
+    const handleDownload = async (attachment_id: string, filename: string) => {
+        try {
+            const response = await api.get(`/api/attachments/${attachment_id}/download`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("Download failed", e);
         }
     };
 
@@ -69,7 +88,10 @@ const AttachmentVault: React.FC<AttachmentVaultProps> = ({ attachments }) => {
                             </div>
                         )}
 
-                        <button className="w-full py-2 flex items-center justify-center gap-2 bg-slate-700/50 hover:bg-indigo-600 text-slate-300 hover:text-white rounded-lg text-sm font-medium transition-colors relative z-10">
+                        <button
+                            onClick={() => handleDownload(file.id, file.name)}
+                            className="w-full py-2 flex items-center justify-center gap-2 bg-slate-700/50 hover:bg-indigo-600 text-slate-300 hover:text-white rounded-lg text-sm font-medium transition-colors relative z-10"
+                        >
                             <Download size={14} /> Download
                         </button>
                     </div>
