@@ -47,6 +47,7 @@ class Thread(Base):
     last_email_at = Column(DateTime(timezone=True))
     last_synced_at = Column(DateTime(timezone=True))
     intel_generated_at = Column(DateTime(timezone=True))
+    rag_embedded_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 

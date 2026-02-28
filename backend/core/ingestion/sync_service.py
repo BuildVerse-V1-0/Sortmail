@@ -260,6 +260,15 @@ class IngestionService:
             except Exception as e:
                 logger.warning(f"Skipping malformed email {msg_contract.message_id} in thread {thread.id}: {e}")
 
+        # Explicitly commit the Thread and Emails here to ensure the foreign keys
+        # exist before we attempt to insert the child Attachments.
+        try:
+            await self.db.commit()
+        except Exception as e:
+            logger.error(f"Failed to commit Thread/Emails for {thread.id}: {e}")
+            await self.db.rollback()
+            return  # Abort attachment processing if parent emails failed
+
         # 3c. Upsert Attachments
         from core.ingestion.attachment_extractor import _store_attachment
 
@@ -331,12 +340,23 @@ class IngestionService:
         # Trigger AI intelligence pipeline in background (non-blocking)
         import asyncio
         import logging
+        from app.config import settings
+        
         try:
             # Check if there is a running event loop to attach the task to
             loop = asyncio.get_running_loop()
-            loop.create_task(
-                _run_intel_safe(thread.id, user_id, self.db)
-            )
+            if getattr(settings, "REDIS_URL", None):
+                from core.intelligence.processing_queue import get_queue
+                queue = get_queue(settings.REDIS_URL)
+                loop.create_task(queue.enqueue(thread.id, priority=50))
+                for att_id in attachments_to_index:
+                    loop.create_task(queue.enqueue(f"att:{att_id}", priority=80))
+            else:
+                loop.create_task(
+                    _run_intel_safe(thread.id, user_id, self.db)
+                )
+                for att_id in attachments_to_index:
+                    loop.create_task(_run_att_intel_safe(att_id, self.db))
         except RuntimeError:
             logging.getLogger(__name__).warning(
                 f"No running event loop found to trigger background intel for thread {thread.id}"
@@ -353,3 +373,14 @@ async def _run_intel_safe(thread_id: str, user_id: str, db):
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Background intel failed for {thread_id}: {e}")
+
+async def _run_att_intel_safe(attachment_id: str, db):
+    """Run attachment intelligence with its own DB session to avoid conflicts."""
+    try:
+        from core.storage.database import async_session_factory
+        from core.intelligence.attachment_intel import analyze_attachment
+        async with async_session_factory() as session:
+            await analyze_attachment(attachment_id, session)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Background att intel failed for {attachment_id}: {e}")

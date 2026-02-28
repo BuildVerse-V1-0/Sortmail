@@ -184,6 +184,32 @@ class ThreadDetailResponse(BaseModel):
     draft: Optional[DraftDTOv1]
 
 
+@router.get("/{thread_id}/intel-status")
+async def get_intel_status(
+    thread_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Check if intelligence is ready (polling endpoint).
+    Returns basic status and summary if completed.
+    """
+    stmt = select(Thread).where(Thread.id == thread_id, Thread.user_id == current_user.id)
+    result = await db.execute(stmt)
+    thread = result.scalars().first()
+    
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+        
+    status = "completed" if thread.summary else "processing"
+    
+    return {
+        "status": status,
+        "summary": thread.summary if status == "completed" else None
+    }
+
+
+
 @router.get("/{thread_id}", response_model=ThreadDetailResponse)
 async def get_thread(
     thread_id: str,

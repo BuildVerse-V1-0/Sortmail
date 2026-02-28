@@ -25,6 +25,15 @@ async def lifespan(app: FastAPI):
     print(f"📧 Environment: {settings.ENVIRONMENT}")
     from core.storage.database import init_db
     await init_db()
+    
+    # Start Background AI Worker
+    if hasattr(settings, "REDIS_URL") and settings.REDIS_URL:
+        from core.intelligence.processing_queue import intelligence_worker
+        import asyncio
+        app.state.ai_worker_task = asyncio.create_task(intelligence_worker(settings.REDIS_URL))
+    else:
+        logger.warning("REDIS_URL not configured. AI Background Worker will not start.")
+        
     yield
     # Shutdown
     print("👋 Shutting down SortMail API")
@@ -117,7 +126,7 @@ async def health():
 from api.routes import (
     auth, emails, threads, tasks, drafts, reminders,
     dashboard, admin_credits, notifications, credits, accounts, admin_users, events, webhooks,
-    proxy
+    proxy, ai
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
@@ -134,4 +143,5 @@ app.include_router(accounts.router, prefix="/api/connected-accounts", tags=["acc
 app.include_router(admin_users.router, prefix="/api/admin", tags=["admin"])
 app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
+app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(proxy.router, prefix="/api", tags=["proxy"])

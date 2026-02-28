@@ -24,6 +24,7 @@ from contracts import (
     DashboardData
 )
 from models.task import Task, TaskStatus
+from core.intelligence.dashboard_briefing import get_dashboard_briefing
 
 router = APIRouter()
 
@@ -141,3 +142,15 @@ async def get_dashboard_stats(
         recent_threads=[t.model_dump() for t in recent_threads],
         priority_tasks=[t.model_dump() for t in priority_tasks]
     )
+
+
+@router.get("/briefing")
+async def get_realtime_ai_briefing(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get lightning-fast aggregated view of all high priority/high urgency AI discoveries.
+    """
+    briefing = await get_dashboard_briefing(user_id=current_user.id, db=db)
+    return briefing

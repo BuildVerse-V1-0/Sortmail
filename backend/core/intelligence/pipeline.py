@@ -113,6 +113,12 @@ async def process_thread_intelligence(
         await db.commit()
         logger.info(f"Intel saved: thread={thread_id} intent={intent} score={urgency_score}")
 
+        # ── 6.5 Embed thread into ChromaDB if valuable ─────────────────
+        from core.intelligence.embedding_strategy import embed_thread_if_valuable
+        messages_text = "\\n".join([m.get("body", "") for m in messages])
+        await embed_thread_if_valuable(thread, user_id, messages_text, db)
+
+
         # ── 7. Auto-create Tasks from action items ────────────────────
         for item in action_items:
             await _create_task(user_id, thread_id, item, db)

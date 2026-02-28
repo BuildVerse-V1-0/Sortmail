@@ -62,6 +62,7 @@ class Attachment(Base):
     
     # Extraction & AI
     extracted_text = Column(Text, nullable=True)
+    intel_json = Column(JSONB, nullable=True) # Cached Gemini Flash intelligence
     extraction_method = Column(String, nullable=True)
     extraction_language = Column(String, nullable=True)
     extraction_confidence = Column(Float, nullable=True)

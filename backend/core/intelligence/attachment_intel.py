@@ -1,163 +1,172 @@
 """
 Attachment Intelligence
 -----------------------
-Analyzes document attachments and produces AttachmentIntel.
-
-Note: AttachmentIntel is an INTERNAL type, embedded in ThreadIntelV1.
+Analyzes document attachments (PDF, DOCX, PPTX) and produces deep analysis.
+Uses Gemini Flash to extract summary, key points, action items, financial data, etc.
 """
 
-from typing import List
+import json
+import logging
+from typing import Optional, Dict, Any
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
-from contracts import AttachmentRef, AttachmentIntel
+from models.attachment import Attachment, AttachmentStatus
+import google.generativeai as genai
 from app.config import settings
 
+logger = logging.getLogger(__name__)
 
-async def analyze_attachments(
-    attachments: List[AttachmentRef],
-    model: str = "gemini-1.5-pro",
-) -> List[AttachmentIntel]:
+# Configure Gemini once globally
+if getattr(settings, "GEMINI_API_KEY", None):
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+
+
+async def analyze_attachment(attachment_id: str, db: AsyncSession) -> Optional[Dict[str, Any]]:
     """
-    Analyze all attachments and produce intelligence.
+    Extracts text from a downloaded attachment and runs a unified Gemini Flash analysis.
+    Saves the result to attachment.intel_json and returns the JSON payload.
+    """
+    stmt = select(Attachment).where(Attachment.id == attachment_id)
+    result = await db.execute(stmt)
+    attachment = result.scalars().first()
     
-    Args:
-        attachments: List of attachment references
-        model: LLM model to use
+    if not attachment:
+        logger.warning(f"Attachment {attachment_id} not found.")
+        return None
         
-    Returns:
-        List of AttachmentIntel (embedded in ThreadIntelV1)
-    """
-    results = []
-    
-    for att in attachments:
-        intel = await _analyze_single_attachment(att, model)
-        if intel:
-            results.append(intel)
-    
-    return results
-
-
-async def _analyze_single_attachment(
-    attachment: AttachmentRef,
-    model: str,
-) -> AttachmentIntel:
-    """Analyze a single attachment."""
-    # Extract text based on type
-    text = await _extract_text(attachment)
-    
-    if not text:
-        return AttachmentIntel(
-            attachment_id=attachment.attachment_id,
-            summary="Could not extract text from document",
-            key_points=[],
-            document_type="unknown",
-            importance="low",
-        )
-    
-    # Generate summary with LLM
-    summary = await _summarize_document(text, model)
-    key_points = await _extract_key_points(text, model)
-    doc_type = _classify_document_type(attachment, text)
-    importance = _assess_importance(doc_type, key_points)
-    
-    return AttachmentIntel(
-        attachment_id=attachment.attachment_id,
-        summary=summary,
-        key_points=key_points,
-        document_type=doc_type,
-        importance=importance,
-    )
-
-
-async def _extract_text(attachment: AttachmentRef) -> str:
-    """Extract text from attachment file."""
     if not attachment.storage_path:
-        return ""
+        logger.warning(f"Attachment {attachment_id} has no storage path yet.")
+        return None
+
+    # 1. Extract Document Text
+    text = await _extract_text(attachment)
+    if not text or len(text.strip()) < 10:
+        logger.debug(f"Attachment {attachment_id} text extraction failed or insufficient.")
+        attachment.status = AttachmentStatus.FAILED
+        await db.commit()
+        return None
+        
+    # Chunk text broadly if it's massive to avoid absolutely destroying tokens
+    # Gemini Flash supports 1m tokens, but good to cap at ~50k characters for speed
+    safe_text = text[:50000]
+
+    # 2. Build Deep Analysis Prompt
+    prompt = f"""
+You are an expert document analyst. Analyze this business document and return pure JSON with no markdown formatting.
+Ensure the keys match exactly:
+- `document_type`: one of [contract, invoice, proposal, report, resume, meeting_notes, other]
+- `summary`: 2-3 sentence overview
+- `key_points`: list of 3-5 important facts
+- `action_items`: list of specific things the user must do
+- `financial_amounts`: any monetary values mentioned, e.g., ["$1,500 total due", "€50k budget"]
+- `dates_and_deadlines`: important dates mentioned
+- `risk_flags`: anything unusual or requiring attention (empty list if none)
+- `parties_involved`: list of companies or people named
+
+DOCUMENT TEXT TO ANALYZE:
+---
+{safe_text}
+---
+
+Return ONLY valid JSON.
+"""
     
     try:
-        if attachment.mime_type == "application/pdf":
-            return _extract_pdf_text(attachment.storage_path)
-        elif "word" in attachment.mime_type or attachment.mime_type.endswith(".document"):
-            return _extract_docx_text(attachment.storage_path)
-        elif "powerpoint" in attachment.mime_type or attachment.mime_type.endswith(".presentation"):
-            return _extract_pptx_text(attachment.storage_path)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = await model.generate_content_async(
+            contents=prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.1,
+                response_mime_type="application/json"
+            )
+        )
+        
+        raw_json = response.text
+        intel_dict = json.loads(raw_json)
+        
+        # 3. Save back to DB
+        attachment.intel_json = intel_dict
+        attachment.extracted_text = safe_text[:2000] # Save a snippet
+        attachment.status = AttachmentStatus.INDEXED
+        
+        await db.commit()
+        logger.info(f"✅ Generated intelligence for attachment {attachment.id}")
+        return intel_dict
+        
+    except Exception as e:
+        logger.error(f"Failed to analyze attachment {attachment.id}: {e}")
+        attachment.status = AttachmentStatus.FAILED
+        await db.commit()
+        return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Text Extractors
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def _extract_text(attachment: Attachment) -> str:
+    """Route text extraction based on mime type or extension."""
+    try:
+        mime = (attachment.mime_type or "").lower()
+        path = attachment.storage_path
+        
+        if mime == "application/pdf" or path.endswith(".pdf"):
+            return _extract_pdf_text(path)
+        elif "wordprocessing" in mime or path.endswith(".docx"):
+            return _extract_docx_text(path)
+        elif "presentation" in mime or path.endswith(".pptx"):
+            return _extract_pptx_text(path)
+        elif mime.startswith("text/"):
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read()
         else:
+            logger.debug(f"Unsupported mime type for text extraction: {mime}")
             return ""
-    except Exception:
+    except Exception as e:
+        logger.error(f"Text extraction failed for {attachment.id}: {e}")
         return ""
 
 
 def _extract_pdf_text(path: str) -> str:
-    """Extract text from PDF."""
-    # TODO: Implement with pypdf
-    # from pypdf import PdfReader
-    # reader = PdfReader(path)
-    # text = ""
-    # for page in reader.pages:
-    #     text += page.extract_text()
-    # return text
-    return ""
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(path)
+        return "\\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+    except ImportError:
+        logger.warning("pypdf not installed.")
+        return ""
+    except Exception as e:
+        logger.warning(f"Failed parsing PDF {path}: {e}")
+        return ""
 
 
 def _extract_docx_text(path: str) -> str:
-    """Extract text from DOCX."""
-    # TODO: Implement with python-docx
-    # from docx import Document
-    # doc = Document(path)
-    # return "\n".join(p.text for p in doc.paragraphs)
-    return ""
+    try:
+        from docx import Document
+        doc = Document(path)
+        return "\\n".join([p.text for p in doc.paragraphs if p.text])
+    except ImportError:
+        logger.warning("python-docx not installed.")
+        return ""
+    except Exception as e:
+        logger.warning(f"Failed parsing DOCX {path}: {e}")
+        return ""
 
 
 def _extract_pptx_text(path: str) -> str:
-    """Extract text from PPTX."""
-    # TODO: Implement with python-pptx
-    # from pptx import Presentation
-    # prs = Presentation(path)
-    # text = ""
-    # for slide in prs.slides:
-    #     for shape in slide.shapes:
-    #         if hasattr(shape, "text"):
-    #             text += shape.text + "\n"
-    # return text
-    return ""
-
-
-async def _summarize_document(text: str, model: str) -> str:
-    """Generate document summary with LLM."""
-    # TODO: Implement LLM summarization
-    return f"Document summary (first 100 chars): {text[:100]}..."
-
-
-async def _extract_key_points(text: str, model: str) -> List[str]:
-    """Extract key points from document."""
-    # TODO: Implement LLM key point extraction
-    return ["Key point 1", "Key point 2"]
-
-
-def _classify_document_type(attachment: AttachmentRef, text: str) -> str:
-    """Classify document type based on content."""
-    filename_lower = attachment.filename.lower()
-    text_lower = text.lower()
-    
-    if "contract" in filename_lower or "agreement" in text_lower:
-        return "contract"
-    elif "invoice" in filename_lower or "total due" in text_lower:
-        return "invoice"
-    elif "proposal" in filename_lower or "we propose" in text_lower:
-        return "proposal"
-    elif "resume" in filename_lower or "cv" in filename_lower:
-        return "resume"
-    elif "report" in filename_lower:
-        return "report"
-    else:
-        return "document"
-
-
-def _assess_importance(doc_type: str, key_points: List[str]) -> str:
-    """Assess document importance."""
-    high_importance_types = ["contract", "invoice", "proposal"]
-    if doc_type in high_importance_types:
-        return "high"
-    elif len(key_points) >= 3:
-        return "medium"
-    else:
-        return "low"
+    try:
+        from pptx import Presentation
+        prs = Presentation(path)
+        text = []
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text:
+                    text.append(shape.text)
+        return "\\n".join(text)
+    except ImportError:
+        logger.warning("python-pptx not installed.")
+        return ""
+    except Exception as e:
+        logger.warning(f"Failed parsing PPTX {path}: {e}")
+        return ""

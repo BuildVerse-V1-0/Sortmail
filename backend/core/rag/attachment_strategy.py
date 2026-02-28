@@ -5,113 +5,7 @@ Implements the multi-tier Hybrid RAG Storage logic for processing large emails a
 Routes to PostgreSQL, ChromaDB, and S3 Storage based on the document's token volume.
 """
 
-import logging
-import asyncio
-from typing import List, Dict
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update
-
-from core.storage.s3 import s3_client
-from core.storage.vector_store import vector_store
-from models.attachment import Attachment, AttachmentStatus
-
-logger = logging.getLogger(__name__)
-
-def _estimate_tokens(text: str) -> int:
-    """Estimate token count for routing constraints."""
-    try:
-        import tiktoken
-        enc = tiktoken.get_encoding("cl100k_base")
-        return len(enc.encode(text))
-    except ImportError:
-        # Fallback estimation 1 token ~= 1.3 words (standard cl100k estimate)
-        return int(len(text.split()) * 1.3)
-
-async def _generate_embedding(text: str) -> List[float]:
-    """Generate generic embedding using configured LLM Provider (Gemini/OpenAI)."""
-    from app.config import settings
-    
-    if settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        
-        # Using Google's text-embedding model in a threadpool
-        def _embed():
-            return genai.embed_content(
-                model="models/embedding-001",
-                content=text,
-                task_type="retrieval_document"
-            )
-        try:    
-            result = await asyncio.to_thread(_embed)
-            return result['embedding']
-        except Exception as e:
-            logger.error(f"Failed embedding generation via Gemini: {e}")
-            return [0.0] * 768
-            
-    elif settings.LLM_PROVIDER == "openai" and settings.OPENAI_API_KEY:
-        try:
-            from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-            response = await client.embeddings.create(
-                input=text,
-                model="text-embedding-3-small"
-            )
-            return response.data[0].embedding
-        except Exception as e:
-            logger.error(f"Failed embedding generation via OpenAI: {e}")
-            return [0.0] * 1536
-            
-    # Dev mock fallback if APIs unconfigured
-    return [0.0] * 768
-
-def chunk_text_for_rag(text: str, max_chunk_tokens: int = 512) -> List[Dict]:
-    """Smart chunking that preserves meaning based on paragraph boundaries."""
-    paragraphs = text.split('\n\n')
-    chunks = []
-    current_chunk = ""
-    current_tokens = 0
-    
-    for para in paragraphs:
-        para_tokens = _estimate_tokens(para)
-        
-        # If paragraph alone exceeds max, split by sentences
-        if para_tokens > max_chunk_tokens:
-            sentences = para.split('. ')
-            for sentence in sentences:
-                sent_tokens = _estimate_tokens(sentence)
-                
-                if current_tokens + sent_tokens > max_chunk_tokens:
-                    if current_chunk:
-                        chunks.append({
-                            'text': current_chunk.strip(),
-                            'tokens': current_tokens
-                        })
-                    current_chunk = sentence + '. '
-                    current_tokens = sent_tokens
-                else:
-                    current_chunk += sentence + '. '
-                    current_tokens += sent_tokens
-        else:
-            if current_tokens + para_tokens > max_chunk_tokens:
-                if current_chunk:
-                    chunks.append({
-                        'text': current_chunk.strip(),
-                        'tokens': current_tokens
-                    })
-                current_chunk = para + '\n\n'
-                current_tokens = para_tokens
-            else:
-                current_chunk += para + '\n\n'
-                current_tokens += para_tokens
-                
-    if current_chunk:
-        chunks.append({
-            'text': current_chunk.strip(),
-            'tokens': current_tokens
-        })
-        
-    return chunks
+from core.rag.embeddings import generate_embedding, chunk_text_for_rag, _estimate_tokens
 
 class AttachmentContextStrategy:
     """Intelligent Routing for Attachment Context based on Token Complexity."""
@@ -150,7 +44,7 @@ class AttachmentContextStrategy:
         chunks = chunk_text_for_rag(text, max_chunk_tokens=512)
         
         for i, chunk in enumerate(chunks):
-            embedding = await _generate_embedding(chunk['text'])
+            embedding = await generate_embedding(chunk['text'])
             await vector_store.add(
                 id=f"{attachment_id}_chunk_{i}",
                 document=chunk['text'],
@@ -190,7 +84,7 @@ class AttachmentContextStrategy:
         chunks = chunk_text_for_rag(key_excerpts, max_chunk_tokens=512)
         
         for i, chunk in enumerate(chunks):
-            embedding = await _generate_embedding(chunk['text'])
+            embedding = await generate_embedding(chunk['text'])
             await vector_store.add(
                 id=f"{attachment_id}_chunk_{i}",
                 document=chunk['text'],
@@ -225,7 +119,7 @@ class AttachmentContextStrategy:
         summary_text = f"Automated Indexing Summary: '{filename}' is a large {len(text)}-character document stored in Tier 3 S3 Cold Storage to optimize DB costs."
         
         # 3. Embed lightweight summary map
-        embedding = await _generate_embedding(summary_text)
+        embedding = await generate_embedding(summary_text)
         await vector_store.add(
             id=f"{attachment_id}_summary",
             document=summary_text,
