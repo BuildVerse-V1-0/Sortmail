@@ -50,18 +50,20 @@ def extract_action_items(intel_json: dict) -> list[dict]:
     for item in raw:
         if not isinstance(item, dict):
             continue
-        title = (item.get("title") or "").strip()
+        title = (item.get("title") or item.get("task") or "").strip()
         if not title:
             continue
 
         priority = (item.get("priority") or "medium").lower()
         if priority not in ("urgent", "high", "medium", "low"):
             priority = "medium"
+            
+        owner = (item.get("owner") or "YOU").strip()
 
         valid.append({
             "title": title[:255],
-            "description": (item.get("description") or "").strip() or None,
-            "due_date": item.get("due_date"),  # raw string, pipeline parses
+            "description": f"Assigned to: {owner}",
+            "due_date": item.get("due_date") or item.get("deadline"),
             "priority": priority,
         })
 

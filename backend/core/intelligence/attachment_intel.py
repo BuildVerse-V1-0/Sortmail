@@ -77,8 +77,7 @@ Return ONLY valid JSON.
         response = await model.generate_content_async(
             contents=prompt,
             generation_config=genai.types.GenerationConfig(
-                temperature=0.1,
-                response_mime_type="application/json"
+                temperature=0.1
             )
         )
         

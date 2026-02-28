@@ -31,7 +31,7 @@ async def generate_embedding(text: str) -> List[float]:
         # Using Google's text-embedding model in a threadpool
         def _embed():
             return genai.embed_content(
-                model="models/embedding-001",
+                model="models/text-embedding-004",
                 content=text,
                 task_type="retrieval_document"
             )
