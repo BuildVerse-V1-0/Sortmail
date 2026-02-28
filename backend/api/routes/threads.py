@@ -32,7 +32,9 @@ class ThreadListItem(BaseModel):
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select
+
+from app.config import settings, desc
 
 from core.storage.database import get_db
 from api.dependencies import get_current_user
@@ -250,9 +252,15 @@ async def get_thread(
         
         # Sandbox image requests through proxy
         raw_html = m.body_html or ""
+        
+        # Derive backend base URL using the known Google OAuth Callback
+        backend_url = settings.GOOGLE_REDIRECT_URI.replace("/api/auth/google/callback", "")
+        if not backend_url.startswith("http"):
+            backend_url = "https://sortmail-production.up.railway.app"
+
         safed_html = re.sub(
             r'src=["\'](https?://[^"\']+)["\']',
-            lambda match: f'src="/api/proxy/image?url={quote(match.group(1), safe="")}"',
+            lambda match: f'src="{backend_url}/api/proxy/image?url={quote(match.group(1), safe="")}"',
             raw_html
         )
 
