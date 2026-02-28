@@ -6,7 +6,7 @@ import type { EmailMessage, EmailThreadV1, ThreadIntelV1, TaskDTOv1, DraftDTOv1,
 import {
     ArrowLeft, Sparkles, AlertTriangle, Clock, FileText,
     Calendar, Users, Target, Send, RefreshCw, ChevronDown,
-    Paperclip, Brain, Zap, MessageSquare
+    Paperclip, Brain, Zap, MessageSquare, Download, Eye
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppShell from '@/components/layout/AppShell';
 import { useThreadDetail } from '@/hooks/useThreadDetail';
 import { Skeleton } from '@/components/ui/skeleton';
+import { api } from '@/lib/api';
 
 export default function ThreadDetailPage() {
     const params = useParams();
@@ -296,6 +297,37 @@ function TasksPanel({ tasks }: { tasks: TaskDTOv1[] }) {
 // ─── Attachments Panel ───────────────────────────────────────
 
 function AttachmentsPanel({ attachments, intel }: { attachments: AttachmentRef[]; intel: ThreadIntelV1 | null }) {
+    const handleDownload = async (attachment_id: string, filename: string) => {
+        try {
+            const response = await api.get(`/api/attachments/${attachment_id}/download`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("Download failed", e);
+        }
+    };
+
+    const handlePreview = async (attachment_id: string, mime_type: string) => {
+        try {
+            const response = await api.get(`/api/attachments/${attachment_id}/preview`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: mime_type }));
+            window.open(url, '_blank');
+            setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+        } catch (e) {
+            console.error("Preview failed", e);
+        }
+    };
+
     return (
         <Card>
             <CardHeader className="pb-3">
@@ -316,9 +348,17 @@ function AttachmentsPanel({ attachments, intel }: { attachments: AttachmentRef[]
                         <div key={att.attachment_id} className="border border-border rounded-md p-3">
                             <div className="flex items-center gap-2">
                                 <FileText className="h-4 w-4 text-accent shrink-0" />
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                     <p className="text-sm font-medium truncate">{att.filename}</p>
                                     <p className="text-xs text-muted-foreground font-mono">{sizeDisplay}</p>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handlePreview(att.attachment_id, att.mime_type)} title="Preview">
+                                        <Eye className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(att.attachment_id, att.filename)} title="Download">
+                                        <Download className="h-3.5 w-3.5" />
+                                    </Button>
                                 </div>
                             </div>
                             {attIntel && (
