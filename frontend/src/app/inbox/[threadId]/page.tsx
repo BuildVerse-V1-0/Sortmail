@@ -211,6 +211,26 @@ export default function ThreadDetailPage() {
                                     {attachmentItems.length > 0 ? `${attachmentItems.length} attachments indexed and ready for intelligence review.` : 'No attachment intelligence available.'}
                                 </p>
                             </div>
+                            {intel?.attachment_summaries && intel.attachment_summaries.length > 0 && (
+                                <div className="space-y-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Attachment Intelligence</p>
+                                    <div className="space-y-2">
+                                        {intel.attachment_summaries.map((att) => (
+                                            <div key={att.attachment_id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                                <p className="text-sm font-semibold text-slate-800">{att.document_type || 'Document'} · {att.importance || 'medium'}</p>
+                                                <p className="text-xs text-slate-600 mt-1">{att.summary || 'No summary available.'}</p>
+                                                {att.key_points && att.key_points.length > 0 && (
+                                                    <ul className="mt-2 list-disc pl-4 space-y-1">
+                                                        {att.key_points.slice(0, 3).map((point, idx) => (
+                                                            <li key={`${att.attachment_id}-${idx}`} className="text-[11px] text-slate-600">{point}</li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 

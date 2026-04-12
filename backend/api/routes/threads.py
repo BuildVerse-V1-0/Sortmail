@@ -394,13 +394,107 @@ from models.attachment import Attachment
 def _serialize_intel(t: Thread) -> Optional[ThreadIntelV1]:
     if not t.intel_json and not t.summary:
         return None
+
+    def _normalize_entities(raw_entities: object) -> list[dict]:
+        if isinstance(raw_entities, list):
+            out: list[dict] = []
+            for item in raw_entities:
+                if isinstance(item, dict):
+                    out.append({
+                        "entity_type": str(item.get("entity_type") or item.get("type") or "unknown"),
+                        "value": str(item.get("value") or ""),
+                        "confidence": float(item.get("confidence") or 0.5),
+                    })
+            return out
+
+        if isinstance(raw_entities, dict):
+            out: list[dict] = []
+            for key, values in raw_entities.items():
+                if isinstance(values, list):
+                    for v in values:
+                        if v is None:
+                            continue
+                        out.append({
+                            "entity_type": str(key),
+                            "value": str(v),
+                            "confidence": 0.5,
+                        })
+            return out
+
+        return []
+
+    def _normalize_deadlines(raw_deadlines: object) -> list[dict]:
+        if not isinstance(raw_deadlines, list):
+            return []
+        out: list[dict] = []
+        for d in raw_deadlines:
+            if isinstance(d, dict):
+                out.append({
+                    "raw_text": str(d.get("raw_text") or d.get("text") or d.get("value") or "deadline"),
+                    "normalized": d.get("normalized") or d.get("date"),
+                    "confidence": float(d.get("confidence") or 0.5),
+                    "source": str(d.get("source") or t.id),
+                })
+            elif isinstance(d, str):
+                out.append({
+                    "raw_text": d,
+                    "normalized": None,
+                    "confidence": 0.5,
+                    "source": t.id,
+                })
+        return out
+
+    def _normalize_attachment_summaries(raw_payload: dict) -> list[dict]:
+        raw = raw_payload.get("attachment_summaries")
+        if not raw:
+            raw = raw_payload.get("attachment_intel")
+        if not isinstance(raw, list):
+            return []
+
+        normalized: list[dict] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            attachment_id = str(item.get("attachment_id") or "")
+            if not attachment_id:
+                continue
+            normalized.append({
+                "attachment_id": attachment_id,
+                "summary": str(item.get("summary") or ""),
+                "key_points": [str(p) for p in (item.get("key_points") or []) if p is not None],
+                "document_type": str(item.get("document_type") or "unknown"),
+                "importance": str(item.get("importance") or "medium"),
+            })
+        return normalized
         
     # If we have JSON cache, use it
     if t.intel_json:
-        # Pydantic parse
+        # Normalize legacy payload shapes to current contract.
         try:
-            return ThreadIntelV1(**t.intel_json)
-        except:
+            payload = dict(t.intel_json or {})
+            payload.setdefault("thread_id", t.id)
+            payload.setdefault("summary", t.summary or "")
+            payload.setdefault("intent", t.intent or "UNKNOWN")
+            payload.setdefault("urgency_score", t.urgency_score or 0)
+
+            decision_needed = payload.get("decision_needed")
+            if isinstance(decision_needed, bool):
+                payload["decision_needed"] = "Decision required" if decision_needed else None
+            elif decision_needed is not None and not isinstance(decision_needed, str):
+                payload["decision_needed"] = str(decision_needed)
+
+            payload["extracted_deadlines"] = _normalize_deadlines(payload.get("extracted_deadlines") or payload.get("deadlines"))
+            payload["entities"] = _normalize_entities(payload.get("entities"))
+            payload["attachment_summaries"] = _normalize_attachment_summaries(payload)
+            payload["suggested_reply_points"] = [
+                str(p) for p in (payload.get("suggested_reply_points") or payload.get("key_points") or []) if p is not None
+            ]
+            payload.setdefault("suggested_action", payload.get("main_ask"))
+            payload["schema_version"] = str(payload.get("schema_version") or payload.get("model") or "unknown")
+            payload.setdefault("processed_at", payload.get("processed_at") or (t.intel_generated_at or datetime.now(timezone.utc)).isoformat())
+
+            return ThreadIntelV1(**payload)
+        except Exception:
             pass
             
     # Construct partial from columns
