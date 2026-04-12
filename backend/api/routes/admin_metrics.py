@@ -12,6 +12,9 @@ from sqlalchemy import String, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import User
 from models.ai import AIUsageLog
+from models.thread import Thread
+from models.email import Email
+from models.draft import Draft
 from models.credits import UserCredits, PlanType, CreditTransaction, TransactionType
 from models.billing import Invoice, InvoiceStatus, Subscription, SubscriptionStatus
 from core.credits.token_pricing import milli_to_credits
@@ -204,11 +207,104 @@ async def ai_usage_metrics(
     )
     rows = (await db.execute(rows_stmt)).scalars().all()
 
+    row_user_ids = {str(row.user_id) for row in rows if row.user_id}
+    user_identity_map: dict[str, dict[str, str | None]] = {}
+    user_plan_map: dict[str, str] = {}
+    if row_user_ids:
+        user_rows = (
+            await db.execute(
+                select(User.id, User.email, User.name).where(User.id.in_(row_user_ids))
+            )
+        ).all()
+        user_identity_map = {
+            str(uid): {
+                "email": email,
+                "name": name,
+            }
+            for uid, email, name in user_rows
+        }
+
+        plan_rows = (
+            await db.execute(
+                select(UserCredits.user_id, UserCredits.plan).where(UserCredits.user_id.in_(row_user_ids))
+            )
+        ).all()
+        user_plan_map = {
+            str(uid): (plan.value if plan else PlanType.FREE.value)
+            for uid, plan in plan_rows
+        }
+
+    thread_ids = {
+        str(row.related_entity_id)
+        for row in rows
+        if row.related_entity_id and (row.related_entity_type or "").lower() == "thread"
+    }
+    email_ids = {
+        str(row.related_entity_id)
+        for row in rows
+        if row.related_entity_id and (row.related_entity_type or "").lower() == "email"
+    }
+    draft_ids = {
+        str(row.related_entity_id)
+        for row in rows
+        if row.related_entity_id and (row.related_entity_type or "").lower() == "draft"
+    }
+
+    thread_preview_map: dict[str, dict[str, str | None]] = {}
+    email_preview_map: dict[str, dict[str, str | None]] = {}
+    draft_preview_map: dict[str, dict[str, str | None]] = {}
+
+    if thread_ids:
+        thread_rows = (
+            await db.execute(
+                select(Thread.id, Thread.subject, Thread.external_id).where(Thread.id.in_(thread_ids))
+            )
+        ).all()
+        thread_preview_map = {
+            str(thread_id): {
+                "subject": subject,
+                "external_id": external_id,
+            }
+            for thread_id, subject, external_id in thread_rows
+        }
+
+    if email_ids:
+        email_rows = (
+            await db.execute(
+                select(Email.id, Email.subject, Email.sender, Email.snippet).where(Email.id.in_(email_ids))
+            )
+        ).all()
+        email_preview_map = {
+            str(email_id): {
+                "subject": subject,
+                "sender": sender,
+                "snippet": snippet,
+            }
+            for email_id, subject, sender, snippet in email_rows
+        }
+
+    if draft_ids:
+        draft_rows = (
+            await db.execute(
+                select(Draft.id, Draft.subject, Draft.thread_id).where(Draft.id.in_(draft_ids))
+            )
+        ).all()
+        draft_preview_map = {
+            str(draft_id): {
+                "subject": subject,
+                "thread_id": thread_id,
+            }
+            for draft_id, subject, thread_id in draft_rows
+        }
+
     records = [
         {
             "id": row.id,
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "user_id": row.user_id,
+            "user_email": user_identity_map.get(str(row.user_id), {}).get("email"),
+            "user_name": user_identity_map.get(str(row.user_id), {}).get("name"),
+            "user_plan": user_plan_map.get(str(row.user_id), PlanType.FREE.value),
             "operation_type": row.operation_type,
             "model_name": row.model_name,
             "provider": row.provider.value if row.provider else None,
@@ -220,11 +316,31 @@ async def ai_usage_metrics(
             "latency_ms": row.latency_ms,
             "related_entity_type": row.related_entity_type,
             "related_entity_id": row.related_entity_id,
+            "related_entity_preview": (
+                thread_preview_map.get(str(row.related_entity_id))
+                if (row.related_entity_type or "").lower() == "thread"
+                else email_preview_map.get(str(row.related_entity_id))
+                if (row.related_entity_type or "").lower() == "email"
+                else draft_preview_map.get(str(row.related_entity_id))
+                if (row.related_entity_type or "").lower() == "draft"
+                else None
+            ),
             "request_id": row.request_id,
             "error_occurred": row.error_occurred,
             "error_type": row.error_type,
             "cache_hit": row.cache_hit,
             "token_source": (row.metadata_json or {}).get("token_source"),
+            "provider_cost_usd": round(_as_float(((row.metadata_json or {}).get("pricing") or {}).get("provider_cost_usd"), float((row.cost_cents or 0) / 100.0)), 8),
+            "user_billable_usd": round(_as_float(((row.metadata_json or {}).get("pricing") or {}).get("user_billable_usd"), 0.0), 8),
+            "implied_margin_usd": round(
+                _as_float(((row.metadata_json or {}).get("pricing") or {}).get("user_billable_usd"), 0.0)
+                - _as_float(((row.metadata_json or {}).get("pricing") or {}).get("provider_cost_usd"), float((row.cost_cents or 0) / 100.0)),
+                8,
+            ),
+            "charged_milli_credits": int(((row.metadata_json or {}).get("pricing") or {}).get("charged_milli_credits") or 0),
+            "balance_after": (row.metadata_json or {}).get("balance_after"),
+            "charge_error": (row.metadata_json or {}).get("charge_error"),
+            "metadata": row.metadata_json or {},
         }
         for row in rows
     ]

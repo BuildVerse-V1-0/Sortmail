@@ -18,12 +18,22 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { api, endpoints } from '@/lib/api';
 
 type AIUsageRecord = {
     id: string;
     created_at: string | null;
     user_id: string;
+    user_email?: string | null;
+    user_name?: string | null;
+    user_plan?: string | null;
     operation_type: string;
     model_name: string;
     provider: string | null;
@@ -33,8 +43,21 @@ type AIUsageRecord = {
     cost_cents: number;
     credits_charged: number;
     latency_ms: number | null;
+    related_entity_type?: string | null;
+    related_entity_id?: string | null;
+    related_entity_preview?: Record<string, unknown> | null;
+    request_id?: string | null;
     error_occurred: boolean;
     error_type: string | null;
+    token_source?: string | null;
+    cache_hit?: boolean;
+    provider_cost_usd?: number;
+    user_billable_usd?: number;
+    implied_margin_usd?: number;
+    charged_milli_credits?: number;
+    balance_after?: number | null;
+    charge_error?: string | null;
+    metadata?: Record<string, unknown>;
 };
 
 type AIUsageResponse = {
@@ -129,6 +152,7 @@ function num(value: number): string {
 export default function AIUsagePage() {
     const [hours, setHours] = useState(24);
     const [days, setDays] = useState(30);
+    const [selectedRecord, setSelectedRecord] = useState<AIUsageRecord | null>(null);
 
     const usageQuery = useQuery<AIUsageResponse>({
         queryKey: ['admin-ai-usage-v2', hours],
@@ -204,6 +228,30 @@ export default function AIUsagePage() {
 
     const onRefresh = async () => {
         await Promise.all([usageQuery.refetch(), economicsQuery.refetch(), trendsQuery.refetch()]);
+    };
+
+    const recordForWho = (row: AIUsageRecord): string => {
+        if (row.user_email) return row.user_email;
+        if (row.user_name) return row.user_name;
+        return row.user_id;
+    };
+
+    const recordWhatFor = (row: AIUsageRecord): string => {
+        const entityType = (row.related_entity_type || '').toUpperCase();
+        const preview = row.related_entity_preview || {};
+        if (entityType === 'THREAD') {
+            const subject = typeof preview.subject === 'string' ? preview.subject : '';
+            return subject ? `THREAD • ${subject}` : `THREAD • ${row.related_entity_id || '-'}`;
+        }
+        if (entityType === 'EMAIL') {
+            const subject = typeof preview.subject === 'string' ? preview.subject : '';
+            return subject ? `EMAIL • ${subject}` : `EMAIL • ${row.related_entity_id || '-'}`;
+        }
+        if (entityType === 'DRAFT') {
+            const subject = typeof preview.subject === 'string' ? preview.subject : '';
+            return subject ? `DRAFT • ${subject}` : `DRAFT • ${row.related_entity_id || '-'}`;
+        }
+        return row.related_entity_id || '-';
     };
 
     return (
@@ -383,7 +431,9 @@ export default function AIUsagePage() {
                         <thead className="bg-paper-mid/30 text-ink-light uppercase tracking-wider text-[10px]">
                             <tr>
                                 <th className="text-left px-4 py-3">Time</th>
+                                <th className="text-left px-4 py-3">Who</th>
                                 <th className="text-left px-4 py-3">Operation</th>
+                                <th className="text-left px-4 py-3">What For</th>
                                 <th className="text-left px-4 py-3">Model</th>
                                 <th className="text-right px-4 py-3">Tokens</th>
                                 <th className="text-right px-4 py-3">Credits</th>
@@ -394,9 +444,15 @@ export default function AIUsagePage() {
                         </thead>
                         <tbody>
                             {(usage?.records || []).slice(0, 120).map((row) => (
-                                <tr key={row.id} className="border-t border-border-light/60 hover:bg-paper-mid/20">
+                                <tr
+                                    key={row.id}
+                                    className="border-t border-border-light/60 hover:bg-paper-mid/20 cursor-pointer"
+                                    onClick={() => setSelectedRecord(row)}
+                                >
                                     <td className="px-4 py-3 whitespace-nowrap">{row.created_at ? new Date(row.created_at).toLocaleString() : '-'}</td>
+                                    <td className="px-4 py-3 max-w-[220px] truncate" title={recordForWho(row)}>{recordForWho(row)}</td>
                                     <td className="px-4 py-3">{row.operation_type}</td>
+                                    <td className="px-4 py-3 max-w-[260px] truncate" title={recordWhatFor(row)}>{recordWhatFor(row)}</td>
                                     <td className="px-4 py-3 max-w-[240px] truncate" title={row.model_name}>{row.model_name}</td>
                                     <td className="px-4 py-3 text-right font-mono">{n(row.tokens_total || 0)}</td>
                                     <td className="px-4 py-3 text-right font-mono">{num(row.credits_charged || 0)}</td>
@@ -406,12 +462,74 @@ export default function AIUsagePage() {
                                 </tr>
                             ))}
                             {!isLoading && (usage?.records || []).length === 0 && (
-                                <tr><td colSpan={8} className="px-4 py-8 text-center text-ink-light">No usage rows in this window.</td></tr>
+                                <tr><td colSpan={10} className="px-4 py-8 text-center text-ink-light">No usage rows in this window.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </CardContent>
             </Card>
+
+            <Dialog open={!!selectedRecord} onOpenChange={(open) => !open && setSelectedRecord(null)}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-base font-mono">AI Call Trace Detail</DialogTitle>
+                        <DialogDescription>
+                            Full per-call traceability: caller identity, operation intent, target entity, pricing, and metadata.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {selectedRecord && (
+                        <div className="space-y-5 text-xs">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <TraceRow label="Call ID" value={selectedRecord.id} mono />
+                                <TraceRow label="Time" value={selectedRecord.created_at ? new Date(selectedRecord.created_at).toLocaleString() : '-'} />
+                                <TraceRow label="Who (User ID)" value={selectedRecord.user_id} mono />
+                                <TraceRow label="Who (Email)" value={selectedRecord.user_email || '-'} mono />
+                                <TraceRow label="Who (Name)" value={selectedRecord.user_name || '-'} />
+                                <TraceRow label="Plan" value={selectedRecord.user_plan || '-'} mono />
+                                <TraceRow label="Operation" value={selectedRecord.operation_type} mono />
+                                <TraceRow label="Model" value={selectedRecord.model_name} mono />
+                                <TraceRow label="Provider" value={selectedRecord.provider || '-'} mono />
+                                <TraceRow label="Request Ref" value={selectedRecord.request_id || '-'} mono />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <TraceRow label="Entity Type" value={selectedRecord.related_entity_type || '-'} mono />
+                                <TraceRow label="Entity ID" value={selectedRecord.related_entity_id || '-'} mono />
+                                <TraceRow label="What For" value={recordWhatFor(selectedRecord)} />
+                                <TraceRow label="Token Source" value={selectedRecord.token_source || '-'} mono />
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <TraceRow label="Input Tokens" value={n(selectedRecord.tokens_input || 0)} mono />
+                                <TraceRow label="Output Tokens" value={n(selectedRecord.tokens_output || 0)} mono />
+                                <TraceRow label="Total Tokens" value={n(selectedRecord.tokens_total || 0)} mono />
+                                <TraceRow label="Latency (ms)" value={selectedRecord.latency_ms == null ? '-' : n(selectedRecord.latency_ms)} mono />
+                                <TraceRow label="Credits" value={num(selectedRecord.credits_charged || 0)} mono />
+                                <TraceRow label="Provider Cost" value={usd(selectedRecord.provider_cost_usd || 0)} mono />
+                                <TraceRow label="Billable" value={usd(selectedRecord.user_billable_usd || 0)} mono />
+                                <TraceRow label="Margin" value={usd(selectedRecord.implied_margin_usd || 0)} mono />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <TraceRow label="Status" value={selectedRecord.error_occurred ? 'ERROR' : 'OK'} mono />
+                                <TraceRow label="Error Type" value={selectedRecord.error_type || '-'} mono />
+                                <TraceRow label="Charge Error" value={selectedRecord.charge_error || '-'} mono />
+                                <TraceRow label="Balance After" value={selectedRecord.balance_after == null ? '-' : num(selectedRecord.balance_after)} mono />
+                                <TraceRow label="Cache Hit" value={selectedRecord.cache_hit ? 'true' : 'false'} mono />
+                                <TraceRow label="Charged Milli Credits" value={n(selectedRecord.charged_milli_credits || 0)} mono />
+                            </div>
+
+                            <div>
+                                <div className="text-[11px] uppercase tracking-widest font-mono text-ink-light mb-2">Metadata JSON</div>
+                                <pre className="rounded-md border border-border-light bg-paper-mid/30 p-3 text-[11px] font-mono whitespace-pre-wrap break-words max-h-[320px] overflow-auto">
+{JSON.stringify(selectedRecord.metadata || {}, null, 2)}
+                                </pre>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
@@ -435,6 +553,15 @@ function Summary({ label, value }: { label: string; value: string }) {
         <div className="flex items-center justify-between">
             <span className="text-ink-light">{label}</span>
             <span className="font-mono text-ink">{value}</span>
+        </div>
+    );
+}
+
+function TraceRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+    return (
+        <div className="rounded border border-border-light/70 bg-paper-mid/20 p-2">
+            <div className="text-[10px] uppercase tracking-widest font-mono text-ink-light mb-1">{label}</div>
+            <div className={`${mono ? 'font-mono' : ''} text-ink break-all`}>{value}</div>
         </div>
     );
 }
