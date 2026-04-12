@@ -94,6 +94,15 @@ function InboxContent() {
 
     const isSyncing = syncState === 'syncing' || syncState === 'checking';
 
+    useEffect(() => {
+        if (syncState !== 'done') return;
+        // Re-anchor listing to first page so newly synced top threads render immediately.
+        setCurrentOffset(0);
+        setAllThreads([]);
+        setHasMore(true);
+        setIsLoadingMore(false);
+    }, [syncState]);
+
     // Reset pagination when search changes
     useEffect(() => {
         if (debouncedSearch !== prevSearch) {

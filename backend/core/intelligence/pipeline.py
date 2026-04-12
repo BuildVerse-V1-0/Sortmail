@@ -102,6 +102,34 @@ PAYMENT_MARKERS = (
     "renewal due",
     "recharge",
 )
+
+BILLING_STRONG_MARKERS = (
+    "bill",
+    "invoice",
+    "statement",
+    "statement period",
+    "closing balance",
+    "opening balance",
+    "charges",
+    "tax",
+    "gst",
+    "account number",
+    "due date",
+    "payment due",
+    "service disruption",
+)
+
+PROMOTIONAL_TASK_SUPPRESS_MARKERS = (
+    "bug bounty",
+    "credited to your account",
+    "webinar",
+    "free session",
+    "make money",
+    "reward",
+    "invitation",
+    "join now",
+    "register now",
+)
 SOCIAL_NOTIFICATION_MARKERS = (
     "linkedin",
     "invited you to connect",
@@ -249,6 +277,10 @@ async def process_thread_intelligence(
                 should_create_reply = intent in REPLY_INTENTS and not _is_low_value_intent(intent)
             if should_create_tasks is None:
                 should_create_tasks = intent in TASK_INTENTS and bool(action_items) and not _is_low_value_intent(intent)
+
+            if _should_suppress_task_generation(thread, messages, raw_intel):
+                should_create_tasks = False
+                action_items = []
 
             if not should_create_reply:
                 suggested_draft = None
@@ -700,7 +732,19 @@ def _extract_bill_payment_task(thread: Thread, messages: list[dict], raw_intel: 
     if not combined_text:
         return None
 
+    # Guardrail: do not create billing tasks for obvious promotional / bounty mail.
+    if any(marker in combined_text for marker in PROMOTIONAL_TASK_SUPPRESS_MARKERS):
+        return None
+
     if not any(marker in combined_text for marker in PAYMENT_MARKERS):
+        return None
+
+    # Require at least one concrete billing signal, not just generic "payment" language.
+    if not any(marker in combined_text for marker in BILLING_STRONG_MARKERS):
+        return None
+
+    # Positive credit notification is not a payable bill.
+    if "credited" in combined_text and "due" not in combined_text and "overdue" not in combined_text:
         return None
 
     due_date = _extract_payment_due_date(combined_text)
@@ -743,6 +787,40 @@ def _extract_bill_payment_task(thread: Thread, messages: list[dict], raw_intel: 
         "task_type": task_type,
         "confidence": 0.95,
     }
+
+
+def _should_suppress_task_generation(thread: Thread, messages: list[dict], raw_intel: dict) -> bool:
+    """Suppress tasks for promotional messages unless clear billing/payment-required signals exist."""
+    combined_parts = [
+        thread.subject or "",
+        thread.summary or "",
+        raw_intel.get("summary") or "",
+        raw_intel.get("workflow_reason") or "",
+    ]
+    for message in messages:
+        combined_parts.append(message.get("subject") or "")
+        combined_parts.append(message.get("body") or "")
+
+    combined_text = " ".join(part for part in combined_parts if part).lower()
+    if not combined_text:
+        return False
+
+    is_promotional = _coerce_bool(raw_intel.get("is_promotional"))
+    if not is_promotional:
+        return False
+
+    has_billing_signal = any(marker in combined_text for marker in BILLING_STRONG_MARKERS)
+    has_due_signal = any(marker in combined_text for marker in ("due", "overdue", "last date", "due date", "pay now", "service disruption"))
+
+    # Promotional + no explicit billing/due context => suppress tasks.
+    if not (has_billing_signal and has_due_signal):
+        return True
+
+    # Explicit promo phrases should still suppress unless this is clearly an invoice/bill mail.
+    if any(marker in combined_text for marker in PROMOTIONAL_TASK_SUPPRESS_MARKERS):
+        return True
+
+    return False
 
 
 def _build_bill_task_title(subject: Optional[str], summary: str) -> str:

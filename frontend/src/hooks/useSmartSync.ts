@@ -33,8 +33,13 @@ export function useSmartSync() {
         }
     }, []);
 
-    const invalidateThreads = useCallback(() => {
-        queryClient.invalidateQueries({ queryKey: ['threads'] });
+    const refreshInboxQueries = useCallback(async () => {
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['threads'] }),
+            queryClient.invalidateQueries({ queryKey: ['nav-counts'] }),
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+            queryClient.refetchQueries({ queryKey: ['threads'], type: 'active' }),
+        ]);
     }, [queryClient]);
 
     const triggerSync = useCallback(async () => {
@@ -42,18 +47,47 @@ export function useSmartSync() {
             setSyncState('syncing');
             await api.post(endpoints.emailSync);
 
-            // Poll sync/status every 3s until status is idle/failed
+            // Poll sync/status until backend reports real completion.
+            // Avoid early "done" when background task has not yet flipped to SYNCING.
             let attempts = 0;
+            const syncStartedAt = Date.now();
+            const maxWaitMs = 5 * 60 * 1000;
+            const baselineLastSyncAt = lastSyncAt;
+            let sawSyncing = false;
+
             pollRef.current = setInterval(async () => {
                 attempts++;
                 try {
                     const { data } = await api.get(endpoints.emailSyncStatus);
                     setLastSyncAt(data.last_sync_at);
                     const remoteStatus = String(data.status || '').toUpperCase();
-                    if (remoteStatus === 'IDLE' || remoteStatus === 'FAILED' || attempts > 20) {
+
+                    if (remoteStatus === 'SYNCING') {
+                        sawSyncing = true;
+                        return;
+                    }
+
+                    if (remoteStatus === 'FAILED') {
                         stopPolling();
-                        setSyncState(remoteStatus === 'FAILED' ? 'error' : 'done');
-                        invalidateThreads(); // Refresh threads from DB with new emails
+                        setSyncState('error');
+                        return;
+                    }
+
+                    const timedOut = Date.now() - syncStartedAt > maxWaitMs;
+                    const lastSyncChanged = Boolean(data.last_sync_at && data.last_sync_at !== baselineLastSyncAt);
+
+                    if (remoteStatus === 'IDLE' && (sawSyncing || lastSyncChanged || timedOut)) {
+                        stopPolling();
+                        setSyncState('done');
+                        await refreshInboxQueries();
+                        return;
+                    }
+
+                    if (timedOut || attempts > 150) {
+                        stopPolling();
+                        // Fail safe: refresh anyway so UI catches any completed writes.
+                        await refreshInboxQueries();
+                        setSyncState('done');
                     }
                 } catch {
                     stopPolling();
@@ -63,7 +97,7 @@ export function useSmartSync() {
         } catch {
             setSyncState('error');
         }
-    }, [stopPolling, invalidateThreads]);
+    }, [stopPolling, refreshInboxQueries, lastSyncAt]);
 
     useEffect(() => {
         if (hasRun.current) return;
