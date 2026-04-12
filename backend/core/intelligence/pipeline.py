@@ -33,7 +33,7 @@ from models.email import Email
 from models.attachment import Attachment
 
 # Intelligence engine â€” Llama 3.3 70B via HF Inference API
-from .llama_engine import run_intelligence
+from .llama_engine import run_intelligence_with_usage
 from .summarizer import extract_summary, extract_key_points, extract_suggested_action, extract_suggested_draft
 from .intent_classifier import extract_intent, extract_priority_level, should_follow_up
 from .deadline_extractor import extract_deadlines, extract_expected_reply_by
@@ -43,6 +43,7 @@ from models.tag import Tag
 from models.draft import Draft, DraftStatus, DraftTone
 from core.app_metrics import record_metric
 from core.redis import RedisClient
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,19 @@ SOCIAL_NOTIFICATION_MARKERS = (
 )
 STALE_WORKFLOW_DAYS = 14
 PAYMENT_TASK_WINDOW_DAYS = 3
+PASS2_TRIGGER_INTENTS = {"ACTION_REQUIRED", "URGENT", "SCHEDULING", "QUESTION"}
+IMPORTANT_FYI_MARKERS = (
+    "event",
+    "incident",
+    "outage",
+    "downtime",
+    "security",
+    "breach",
+    "policy update",
+    "deadline",
+    "compliance",
+    "maintenance",
+)
 
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -236,8 +250,9 @@ async def process_thread_intelligence(
             return final_intel
 
         try:
-            # â”€â”€ 3. Single Gemini Flash call â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            raw_intel = await run_intelligence(
+            # Two-pass intelligence: pass-1 micro for all threads, pass-2 only when needed.
+            raw_intel, pass_meta = await _run_two_pass_intelligence(
+                thread=thread,
                 thread_id=thread_id,
                 user_id=user_id,
                 subject=thread.subject or "",
@@ -323,6 +338,7 @@ async def process_thread_intelligence(
                 "tags": tags_list,
                 "attachment_intel": attachment_context,
                 "suggested_draft": suggested_draft,
+                "pass_strategy": pass_meta,
                 "processed_at": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -715,6 +731,138 @@ def _build_workflow_reason(
     if should_create_tasks:
         return f"Task-only thread with {action_items_count} task(s)."
     return "No workflow action needed."
+
+
+def _contains_important_fyi_signal(thread: Thread, messages: list[dict], raw_intel: dict) -> bool:
+    parts = [
+        str(thread.subject or ""),
+        str(raw_intel.get("summary") or ""),
+        str(raw_intel.get("workflow_reason") or ""),
+        " ".join(str(topic) for topic in (raw_intel.get("topics") or [])),
+        " ".join(str(tag) for tag in (raw_intel.get("tags") or [])),
+    ]
+    for msg in messages[:3]:
+        parts.append(str(msg.get("body") or "")[:600])
+    text = " ".join(parts).lower()
+    return any(marker in text for marker in IMPORTANT_FYI_MARKERS)
+
+
+def _meeting_detected(raw_intel: dict) -> bool:
+    meeting = raw_intel.get("meeting_detected")
+    if isinstance(meeting, dict):
+        return bool(meeting.get("has_meeting") or meeting.get("detected"))
+    return bool(meeting)
+
+
+def _has_deadline_or_followup(raw_intel: dict) -> bool:
+    return bool(
+        raw_intel.get("reply_deadline")
+        or raw_intel.get("expected_reply_by")
+        or raw_intel.get("follow_up_needed")
+        or raw_intel.get("deadlines")
+        or raw_intel.get("extracted_deadlines")
+    )
+
+
+def _should_run_second_pass(thread: Thread, messages: list[dict], micro_intel: dict) -> bool:
+    if not settings.INTEL_TWO_PASS_ENABLED:
+        return False
+
+    intent = str(micro_intel.get("intent") or "").upper()
+    if intent in PASS2_TRIGGER_INTENTS:
+        return True
+
+    if bool(micro_intel.get("should_create_reply")) or bool(micro_intel.get("should_create_tasks")):
+        return True
+
+    if len(micro_intel.get("action_items") or []) > 0:
+        return True
+
+    if _meeting_detected(micro_intel) or _has_deadline_or_followup(micro_intel):
+        return True
+
+    if intent in {"FYI", "INFORMATION", "INFORMATION_SHARED"} and _contains_important_fyi_signal(thread, messages, micro_intel):
+        return True
+
+    return False
+
+
+def _merge_pass_intel(primary: dict, secondary: dict) -> dict:
+    merged = dict(primary or {})
+    for key, value in (secondary or {}).items():
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        if isinstance(value, list) and not value and isinstance(merged.get(key), list) and merged.get(key):
+            continue
+        if isinstance(value, dict) and not value and isinstance(merged.get(key), dict) and merged.get(key):
+            continue
+        merged[key] = value
+    return merged
+
+
+async def _run_two_pass_intelligence(
+    *,
+    thread: Thread,
+    thread_id: str,
+    user_id: str,
+    subject: str,
+    participants: list[str],
+    messages: list[dict],
+) -> tuple[dict, dict]:
+    pass1_model = settings.INTEL_PASS1_MODEL_ID or "amazon.nova-micro-v1:0"
+    pass2_model = settings.INTEL_PASS2_MODEL_ID or settings.BEDROCK_MODEL_ID
+
+    pass1 = await run_intelligence_with_usage(
+        thread_id=thread_id,
+        user_id=user_id,
+        subject=subject,
+        participants=participants,
+        messages=messages,
+        model_id=pass1_model,
+        operation="thread_intel_pass1",
+    )
+    pass1_intel = dict(pass1.get("intel") or {})
+    run_pass2 = _should_run_second_pass(thread=thread, messages=messages, micro_intel=pass1_intel)
+
+    pass_meta = {
+        "two_pass_enabled": bool(settings.INTEL_TWO_PASS_ENABLED),
+        "pass1_model": pass1_model,
+        "pass1_input_tokens": int(pass1.get("input_tokens") or 0),
+        "pass1_output_tokens": int(pass1.get("output_tokens") or 0),
+        "pass1_latency_ms": int(pass1.get("latency_ms") or 0),
+        "pass1_token_source": pass1.get("token_source"),
+        "pass2_executed": False,
+        "pass2_model": pass2_model,
+    }
+
+    if not run_pass2:
+        return pass1_intel, pass_meta
+
+    pass2 = await run_intelligence_with_usage(
+        thread_id=thread_id,
+        user_id=user_id,
+        subject=subject,
+        participants=participants,
+        messages=messages,
+        model_id=pass2_model,
+        first_pass_intel=pass1_intel,
+        operation="thread_intel_pass2",
+    )
+    pass2_intel = dict(pass2.get("intel") or {})
+
+    pass_meta.update(
+        {
+            "pass2_executed": True,
+            "pass2_input_tokens": int(pass2.get("input_tokens") or 0),
+            "pass2_output_tokens": int(pass2.get("output_tokens") or 0),
+            "pass2_latency_ms": int(pass2.get("latency_ms") or 0),
+            "pass2_token_source": pass2.get("token_source"),
+        }
+    )
+
+    return _merge_pass_intel(pass1_intel, pass2_intel), pass_meta
 
 
 def _extract_bill_payment_task(thread: Thread, messages: list[dict], raw_intel: dict) -> Optional[dict]:

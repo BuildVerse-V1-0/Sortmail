@@ -311,7 +311,11 @@ class CreditService:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Charge credits from real token usage and write a completed deduction transaction."""
-        breakdown = calculate_token_billing(input_tokens=input_tokens, output_tokens=output_tokens)
+        breakdown = calculate_token_billing(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            model_name=model_name,
+        )
         return await CreditService._charge_milli_credits(
             db,
             user_id=user_id,

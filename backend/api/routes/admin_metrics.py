@@ -199,6 +199,15 @@ async def ai_usage_metrics(
     )
     by_operation_rows = (await db.execute(by_operation_stmt)).all()
 
+    operation_totals: dict[str, int] = {
+        str(row[0] or "").upper(): int(row[1] or 0)
+        for row in by_operation_rows
+    }
+    pass1_calls = int(operation_totals.get("THREAD_INTEL_PASS1", 0))
+    pass2_calls = int(operation_totals.get("THREAD_INTEL_PASS2", 0))
+    pass1_only_estimated = max(pass1_calls - pass2_calls, 0)
+    pass2_execution_rate_pct = round((pass2_calls / pass1_calls) * 100, 3) if pass1_calls else 0.0
+
     rows_stmt = (
         select(AIUsageLog)
         .where(*filters)
@@ -412,6 +421,12 @@ async def ai_usage_metrics(
             }
             for row in by_operation_rows
         ],
+        "two_pass": {
+            "pass1_calls": pass1_calls,
+            "pass2_calls": pass2_calls,
+            "pass1_only_estimated": pass1_only_estimated,
+            "pass2_execution_rate_pct": pass2_execution_rate_pct,
+        },
         "records": records,
     }
 
@@ -579,6 +594,10 @@ async def economics_metrics(
                 "provider_output_per_million_usd": 2.50,
                 "user_input_per_million_usd": 1.20,
                 "user_output_per_million_usd": 10.00,
+                "nova_micro_provider_input_per_million_usd": 0.035,
+                "nova_micro_provider_output_per_million_usd": 0.14,
+                "nova_micro_user_input_per_million_usd": 0.14,
+                "nova_micro_user_output_per_million_usd": 0.56,
             },
         },
         "totals": {
@@ -654,6 +673,7 @@ async def economics_trends(
     ).scalars().all()
 
     trend: dict[tuple[str, str], dict[str, float | int]] = {}
+    pass_trend: dict[str, dict[str, int]] = {}
     for row in usage_rows:
         md = row.metadata_json or {}
         pricing = md.get("pricing") if isinstance(md.get("pricing"), dict) else {}
@@ -680,6 +700,18 @@ async def economics_trends(
         trend[key]["implied_margin_usd"] += (user_billable_usd - provider_cost_usd)
         trend[key]["credits_charged_milli"] += int(row.credits_charged or 0)
 
+        day_pass_key = day
+        if day_pass_key not in pass_trend:
+            pass_trend[day_pass_key] = {
+                "pass1_calls": 0,
+                "pass2_calls": 0,
+            }
+        op = str(row.operation_type or "").upper()
+        if op == "THREAD_INTEL_PASS1":
+            pass_trend[day_pass_key]["pass1_calls"] += 1
+        elif op == "THREAD_INTEL_PASS2":
+            pass_trend[day_pass_key]["pass2_calls"] += 1
+
     series = []
     for (day, plan), values in sorted(trend.items(), key=lambda item: (item[0][0], item[0][1])):
         milli = int(values.get("credits_charged_milli", 0))
@@ -702,4 +734,21 @@ async def economics_trends(
             "since": since_ts.isoformat(),
         },
         "series": series,
+        "two_pass_series": [
+            {
+                "date": day,
+                "pass1_calls": int(values.get("pass1_calls", 0)),
+                "pass2_calls": int(values.get("pass2_calls", 0)),
+                "pass1_only_estimated": max(
+                    int(values.get("pass1_calls", 0)) - int(values.get("pass2_calls", 0)),
+                    0,
+                ),
+                "pass2_execution_rate_pct": (
+                    round((int(values.get("pass2_calls", 0)) / int(values.get("pass1_calls", 0))) * 100, 3)
+                    if int(values.get("pass1_calls", 0))
+                    else 0.0
+                ),
+            }
+            for day, values in sorted(pass_trend.items(), key=lambda item: item[0])
+        ],
     }

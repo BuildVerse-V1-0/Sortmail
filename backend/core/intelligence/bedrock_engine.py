@@ -217,9 +217,10 @@ async def _call_llama_with_usage(
     operation: str = "general",
     metadata: dict[str, Any] | None = None,
     allow_auth_fallback: bool | None = None,
+    model_id: str | None = None,
 ) -> dict[str, Any]:
     """Call Amazon Bedrock Nova via the Converse API."""
-    model_id = settings.BEDROCK_MODEL_ID
+    selected_model_id = str(model_id or settings.BEDROCK_MODEL_ID)
     record_metric("ai_call_attempt")
     record_metric(f"ai_call_attempt_{operation}")
     start = time.perf_counter()
@@ -229,7 +230,11 @@ async def _call_llama_with_usage(
     user_id = str((metadata or {}).get("user_id") or "").strip()
     if user_id:
         estimated_input_tokens = _estimate_input_tokens_from_messages(messages)
-        estimated = calculate_token_billing(estimated_input_tokens, max(int(max_tokens or 0), 0))
+        estimated = calculate_token_billing(
+            estimated_input_tokens,
+            max(int(max_tokens or 0), 0),
+            model_name=selected_model_id,
+        )
         estimated_milli_credits = max(int(estimated.milli_credits_exact), 1)
         try:
             async with async_session_factory() as precheck_db:
@@ -246,7 +251,7 @@ async def _call_llama_with_usage(
     try:
         system_blocks, bedrock_messages = _split_messages(messages)
         request_kwargs: dict[str, Any] = {
-            "modelId": model_id,
+            "modelId": selected_model_id,
             "messages": bedrock_messages,
             "inferenceConfig": {
                 "maxTokens": max_tokens,
@@ -263,7 +268,7 @@ async def _call_llama_with_usage(
         latency_ms = int((time.perf_counter() - start) * 1000)
         call_ref = record_ai_usage(
             operation=operation,
-            model_id=model_id,
+            model_id=selected_model_id,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             token_source=token_source,
@@ -272,7 +277,7 @@ async def _call_llama_with_usage(
         )
         await _persist_ai_usage_log(
             operation=operation,
-            model_id=model_id,
+            model_id=selected_model_id,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             token_source=token_source,
@@ -287,7 +292,7 @@ async def _call_llama_with_usage(
             "Bedrock AI call success ref=%s op=%s model=%s in=%s out=%s latency_ms=%s",
             call_ref,
             operation,
-            model_id,
+            selected_model_id,
             input_tokens,
             output_tokens,
             latency_ms,
@@ -296,7 +301,7 @@ async def _call_llama_with_usage(
             "text": text,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
-            "model_id": model_id,
+            "model_id": selected_model_id,
             "latency_ms": latency_ms,
             "token_source": token_source,
         }
@@ -306,7 +311,7 @@ async def _call_llama_with_usage(
         record_metric(f"ai_call_error_{operation}")
         record_ai_usage(
             operation=operation,
-            model_id=model_id,
+            model_id=selected_model_id,
             input_tokens=0,
             output_tokens=0,
             token_source="error",
@@ -316,7 +321,7 @@ async def _call_llama_with_usage(
         )
         await _persist_ai_usage_log(
             operation=operation,
-            model_id=model_id,
+            model_id=selected_model_id,
             input_tokens=0,
             output_tokens=0,
             token_source="error",
@@ -325,7 +330,7 @@ async def _call_llama_with_usage(
             metadata={**(metadata or {}), "error": str(exc)[:300]},
             call_ref=None,
         )
-        logger.error("Bedrock AI call failed op=%s model=%s: %s", operation, model_id, exc)
+        logger.error("Bedrock AI call failed op=%s model=%s: %s", operation, selected_model_id, exc)
 
         if _is_auth_error(exc):
             record_metric("ai_call_auth_error")
@@ -337,7 +342,7 @@ async def _call_llama_with_usage(
                     "text": fallback_text,
                     "input_tokens": 0,
                     "output_tokens": 0,
-                    "model_id": model_id,
+                    "model_id": selected_model_id,
                     "latency_ms": latency_ms,
                     "token_source": "fallback",
                 }
@@ -345,15 +350,18 @@ async def _call_llama_with_usage(
         raise
 
 
-async def run_intelligence(
+async def run_intelligence_with_usage(
     thread_id: str,
     subject: str,
     participants: list[str],
     messages: list[dict],
     user_id: str | None = None,
     credits_charged: int | None = None,
-) -> dict:
-    """Run Bedrock Nova intelligence on a thread."""
+    model_id: str | None = None,
+    first_pass_intel: dict[str, Any] | None = None,
+    operation: str = "thread_intel",
+) -> dict[str, Any]:
+    """Run Bedrock Nova intelligence on a thread and return parsed intel + token usage."""
     selected_messages = _truncate_messages(messages, max_message_count=4, max_chars_per_message=1200)
     messages_text = ""
     for msg in selected_messages:
@@ -386,6 +394,27 @@ async def run_intelligence(
         latest_inbound_message=latest_inbound_text,
     )
 
+    if isinstance(first_pass_intel, dict) and first_pass_intel:
+        compact_first_pass = {
+            "summary": first_pass_intel.get("summary"),
+            "intent": first_pass_intel.get("intent"),
+            "urgency_score": first_pass_intel.get("urgency_score"),
+            "should_create_reply": first_pass_intel.get("should_create_reply"),
+            "should_create_tasks": first_pass_intel.get("should_create_tasks"),
+            "main_ask": first_pass_intel.get("main_ask"),
+            "decision_needed": first_pass_intel.get("decision_needed"),
+            "action_items": first_pass_intel.get("action_items"),
+            "meeting_detected": first_pass_intel.get("meeting_detected"),
+            "reply_deadline": first_pass_intel.get("reply_deadline"),
+            "topics": first_pass_intel.get("topics"),
+            "tags": first_pass_intel.get("tags"),
+        }
+        user_content = (
+            f"{user_content}\n\n"
+            "First-pass intelligence (use this as context to refine/enrich, and correct if needed):\n"
+            f"{json.dumps(compact_first_pass, ensure_ascii=False)}"
+        )
+
     chat_messages = [
         {"role": "system", "content": THREAD_INTEL_SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
@@ -393,16 +422,18 @@ async def run_intelligence(
 
     for attempt in range(4):
         try:
-            raw = await _call_llama(
+            call_result = await _call_llama_with_usage(
                 chat_messages,
-                operation="thread_intel",
+                operation=operation,
                 metadata={
                     "user_id": user_id,
                     "related_entity_type": "thread",
                     "related_entity_id": thread_id,
                     "credits_charged": int(credits_charged or 0),
                 },
+                model_id=model_id,
             )
+            raw = str(call_result.get("text") or "")
             raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.DOTALL).strip()
             json_match = re.search(r"\{.*\}", raw, re.DOTALL)
             if json_match:
@@ -413,21 +444,69 @@ async def run_intelligence(
             intel["processed_at"] = datetime.now(timezone.utc).isoformat()
             intel["schema_version"] = settings.BEDROCK_MODEL_ID
             intel["model"] = settings.BEDROCK_MODEL_ID
-            return intel
+            return {
+                "intel": intel,
+                "input_tokens": int(call_result.get("input_tokens") or 0),
+                "output_tokens": int(call_result.get("output_tokens") or 0),
+                "latency_ms": int(call_result.get("latency_ms") or 0),
+                "token_source": str(call_result.get("token_source") or "missing"),
+                "model_id": str(call_result.get("model_id") or model_id or settings.BEDROCK_MODEL_ID),
+            }
         except json.JSONDecodeError as exc:
             record_metric("ai_json_parse_error")
             logger.warning("Bedrock JSON parse failed attempt %s/4 for %s: %s", attempt + 1, thread_id, exc)
             if attempt == 3:
                 record_metric("ai_fallback_used")
-                return _fallback_intel(subject, thread_id)
+                return {
+                    "intel": _fallback_intel(subject, thread_id),
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "latency_ms": 0,
+                    "token_source": "fallback_parse_error",
+                    "model_id": str(model_id or settings.BEDROCK_MODEL_ID),
+                }
         except Exception as exc:
             logger.warning("Bedrock intelligence failed attempt %s/4 for %s: %s", attempt + 1, thread_id, exc)
             if attempt == 3:
                 record_metric("ai_fallback_used")
-                return _fallback_intel(subject, thread_id)
+                return {
+                    "intel": _fallback_intel(subject, thread_id),
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "latency_ms": 0,
+                    "token_source": "fallback_runtime_error",
+                    "model_id": str(model_id or settings.BEDROCK_MODEL_ID),
+                }
 
     record_metric("ai_fallback_used")
-    return _fallback_intel(subject, thread_id)
+    return {
+        "intel": _fallback_intel(subject, thread_id),
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "latency_ms": 0,
+        "token_source": "fallback_unexpected",
+        "model_id": str(model_id or settings.BEDROCK_MODEL_ID),
+    }
+
+
+async def run_intelligence(
+    thread_id: str,
+    subject: str,
+    participants: list[str],
+    messages: list[dict],
+    user_id: str | None = None,
+    credits_charged: int | None = None,
+) -> dict:
+    """Run Bedrock Nova intelligence on a thread."""
+    result = await run_intelligence_with_usage(
+        thread_id=thread_id,
+        subject=subject,
+        participants=participants,
+        messages=messages,
+        user_id=user_id,
+        credits_charged=credits_charged,
+    )
+    return dict(result.get("intel") or _fallback_intel(subject, thread_id))
 
 
 async def llama_chat(
@@ -522,7 +601,11 @@ async def _persist_ai_usage_log(
     related_entity_id = (metadata or {}).get("related_entity_id")
     error_text = str((metadata or {}).get("error") or "")
 
-    breakdown = calculate_token_billing(input_tokens=max(int(input_tokens or 0), 0), output_tokens=max(int(output_tokens or 0), 0))
+    breakdown = calculate_token_billing(
+        input_tokens=max(int(input_tokens or 0), 0),
+        output_tokens=max(int(output_tokens or 0), 0),
+        model_name=model_id,
+    )
     provider_cost_cents = int(round(breakdown.provider_cost_usd * 100))
     charged_milli_credits = 0
     balance_after = None

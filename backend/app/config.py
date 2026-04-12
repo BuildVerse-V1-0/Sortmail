@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     HF_TOKEN: str = ""
     BEDROCK_REGION_NAME: str = ""
     BEDROCK_MODEL_ID: str = "us.amazon.nova-2-lite-v1:0"
+    INTEL_TWO_PASS_ENABLED: bool = True
+    INTEL_PASS1_MODEL_ID: str = "amazon.nova-micro-v1:0"
+    INTEL_PASS2_MODEL_ID: str = "us.amazon.nova-2-lite-v1:0"
     AI_AUTODRAFT_ENABLED: bool = False
     EMBEDDING_PROVIDER: str = "bedrock"  # "bedrock" | "gemini" | "openai"
     BEDROCK_EMBED_MODEL_ID: str = "amazon.titan-embed-text-v2:0"
