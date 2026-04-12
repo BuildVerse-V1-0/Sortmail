@@ -91,6 +91,12 @@ type AIUsageResponse = {
         tokens_total: number;
         cost_cents: number;
     }>;
+    two_pass?: {
+        pass1_calls: number;
+        pass2_calls: number;
+        pass1_only_estimated: number;
+        pass2_execution_rate_pct: number;
+    };
     records: AIUsageRecord[];
 };
 
@@ -134,6 +140,13 @@ type EconomicsTrendResponse = {
         provider_cost_usd: number;
         user_billable_usd: number;
         implied_margin_usd: number;
+    }>;
+    two_pass_series?: Array<{
+        date: string;
+        pass1_calls: number;
+        pass2_calls: number;
+        pass1_only_estimated: number;
+        pass2_execution_rate_pct: number;
     }>;
 };
 
@@ -226,6 +239,14 @@ export default function AIUsagePage() {
         );
     }, [trendByDate]);
 
+    const twoPassTrend = useMemo(() => {
+        return (trends?.two_pass_series || []).slice(-14);
+    }, [trends]);
+
+    const maxTwoPassCalls = useMemo(() => {
+        return Math.max(1, ...twoPassTrend.map((d) => Math.max(d.pass1_calls || 0, d.pass2_calls || 0)));
+    }, [twoPassTrend]);
+
     const onRefresh = async () => {
         await Promise.all([usageQuery.refetch(), economicsQuery.refetch(), trendsQuery.refetch()]);
     };
@@ -310,6 +331,13 @@ export default function AIUsagePage() {
                 <MetricCard title="Implied Margin" value={isLoading ? '...' : usd(economics?.totals.implied_margin_usd || 0)} icon={Triangle} tone={(economics?.totals.implied_margin_usd || 0) >= 0 ? 'text-success' : 'text-danger'} />
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <MetricCard title="Pass-1 Calls" value={isLoading ? '...' : n(usage?.two_pass?.pass1_calls || 0)} icon={Layers} tone="text-info" />
+                <MetricCard title="Pass-2 Calls" value={isLoading ? '...' : n(usage?.two_pass?.pass2_calls || 0)} icon={Cpu} tone="text-ai" />
+                <MetricCard title="Pass-1 Only" value={isLoading ? '...' : n(usage?.two_pass?.pass1_only_estimated || 0)} icon={Activity} tone="text-warning" />
+                <MetricCard title="Pass-2 Rate" value={isLoading ? '...' : `${num(usage?.two_pass?.pass2_execution_rate_pct || 0)}%`} icon={TrendingUp} tone="text-success" />
+            </div>
+
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                 <Card className="xl:col-span-2 border-border-light shadow-sm overflow-hidden">
                     <CardHeader className="bg-paper-mid/50 border-b border-border-light">
@@ -353,6 +381,33 @@ export default function AIUsagePage() {
                     </CardContent>
                 </Card>
             </div>
+
+            <Card className="border-border-light shadow-sm overflow-hidden">
+                <CardHeader className="bg-paper-mid/50 border-b border-border-light">
+                    <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-muted-foreground">Two-Pass Execution Trend</CardTitle>
+                </CardHeader>
+                <CardContent className="p-5 bg-white">
+                    <div className="h-44 rounded-lg border border-border-light bg-paper-mid/20 p-3 flex items-end gap-2 overflow-x-auto">
+                        {(twoPassTrend.length ? twoPassTrend : [{ date: 'n/a', pass1_calls: 0, pass2_calls: 0, pass1_only_estimated: 0, pass2_execution_rate_pct: 0 }]).map((point) => {
+                            const pass1Height = Math.max(4, Math.round(((point.pass1_calls || 0) / maxTwoPassCalls) * 100));
+                            const pass2Height = Math.max(4, Math.round(((point.pass2_calls || 0) / maxTwoPassCalls) * 100));
+                            return (
+                                <div key={point.date} className="min-w-[38px] flex-1 h-full flex flex-col items-center justify-end gap-1">
+                                    <div className="w-full flex items-end gap-1 h-[82%]">
+                                        <div className="w-1/2 bg-info/80 rounded-t-sm" style={{ height: `${pass1Height}%` }} title={`Pass-1 ${n(point.pass1_calls || 0)}`} />
+                                        <div className="w-1/2 bg-ai/80 rounded-t-sm" style={{ height: `${pass2Height}%` }} title={`Pass-2 ${n(point.pass2_calls || 0)}`} />
+                                    </div>
+                                    <div className="text-[10px] text-ink-light font-mono">{point.date.slice(5)}</div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] font-mono text-ink-light">
+                        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded bg-info/80" /> Pass-1 calls</span>
+                        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded bg-ai/80" /> Pass-2 calls</span>
+                    </div>
+                </CardContent>
+            </Card>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <Card className="border-border-light shadow-sm overflow-hidden">
