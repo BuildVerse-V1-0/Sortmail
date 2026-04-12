@@ -30,6 +30,12 @@ const liveModules = [
         href: '/admin/ai/usage',
         icon: Brain,
     },
+    {
+        title: 'Email Activity',
+        description: 'Live email processing activity with latency, status, and queue context.',
+        href: '/admin/emails/activity',
+        icon: Gauge,
+    },
 ];
 
 const upcomingModules = [
@@ -44,7 +50,6 @@ const upcomingModules = [
     'Support',
     'Invites',
     'Announcements',
-    'Email Activity',
     'Experiments',
     'Audit Export',
 ];
