@@ -61,6 +61,11 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     logger.info("Shutting down SortMail API")
+    try:
+        from core.redis import RedisClient
+        await RedisClient.close()
+    except Exception as e:
+        logger.warning(f"Redis shutdown cleanup failed: {e}")
 
 
 app = FastAPI(

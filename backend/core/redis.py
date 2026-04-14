@@ -31,7 +31,7 @@ class RedisClient:
                 redis_url,
                 encoding="utf-8",
                 decode_responses=True,
-                max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", 50)),
+                max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", 20)),
                 socket_timeout=5.0,
                 socket_connect_timeout=5.0,
             )

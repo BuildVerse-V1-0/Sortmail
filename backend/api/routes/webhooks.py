@@ -14,6 +14,7 @@ from sqlalchemy import select
 from core.storage.database import get_db
 from models.connected_account import ConnectedAccount, ProviderType
 from core.ingestion import IngestionService
+from core.redis import get_redis
 
 router = APIRouter(redirect_slashes=False)
 logger = logging.getLogger(__name__)
@@ -73,6 +74,18 @@ async def gmail_webhook(
         if not account:
             logger.warning(f"Webhook received for unknown email: {email_address}")
             return {"status": "ignored", "reason": "unknown account"}
+
+        # Debounce repeated webhook bursts for the same user to avoid fan-out.
+        # Incremental sync with history IDs makes coalescing safe.
+        try:
+            redis = await get_redis()
+            dedupe_key = f"sync:webhook:pending:{account.user_id}"
+            acquired = await redis.set(dedupe_key, "1", nx=True, ex=60)
+            if not acquired:
+                logger.info(f"Debounced webhook sync for user {account.user_id}")
+                return {"status": "deduped", "message": "Sync already scheduled"}
+        except Exception as e:
+            logger.warning(f"Webhook dedupe unavailable, scheduling sync anyway: {e}")
             
         # Trigger background sync for the user
         from core.ingestion.sync_service import background_sync_user_emails

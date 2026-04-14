@@ -8,7 +8,7 @@ without hitting rate limits or blocking the webhook sync process.
 import asyncio
 import logging
 from typing import List
-from core.redis import InstrumentedRedis
+from core.redis import get_redis
 
 from core.intelligence.pipeline import process_thread_intelligence
 from core.intelligence.attachment_intel import analyze_attachment
@@ -23,12 +23,18 @@ class IntelligenceQueue:
     """Queue threads for AI processing using Redis Sorted Sets."""
     
     def __init__(self, redis_url: str):
-        self.redis = InstrumentedRedis.from_url(redis_url, decode_responses=True)
+        self.redis = None
         self.queue_key = "intel:pending"
+
+    async def _get_redis(self):
+        if self.redis is None:
+            self.redis = await get_redis()
+        return self.redis
         
     async def enqueue(self, thread_id: str, priority: int = 50):
         """Add thread to processing queue (higher score = processed sooner)"""
-        await self.redis.zadd(
+        redis = await self._get_redis()
+        await redis.zadd(
             self.queue_key,
             {thread_id: priority}
         )
@@ -37,7 +43,8 @@ class IntelligenceQueue:
     
     async def dequeue_batch(self, batch_size: int = 10) -> List[str]:
         """Atomically pop the highest priority items from the queue."""
-        items = await self.redis.zpopmax(self.queue_key, batch_size)
+        redis = await self._get_redis()
+        items = await redis.zpopmax(self.queue_key, batch_size)
         if not items:
             return []
 
@@ -47,11 +54,13 @@ class IntelligenceQueue:
     
     async def size(self) -> int:
         """Get pending queue length"""
-        return await self.redis.zcard(self.queue_key)
+        redis = await self._get_redis()
+        return await redis.zcard(self.queue_key)
     
     async def remove(self, thread_id: str) -> bool:
         """Remove a thread from the processing queue after completion."""
-        removed = await self.redis.zrem(self.queue_key, thread_id)
+        redis = await self._get_redis()
+        removed = await redis.zrem(self.queue_key, thread_id)
         if removed > 0:
             record_metric("queue_item_removed")
             logger.debug(f"[Queue] Removed thread {thread_id} from queue")

@@ -9,6 +9,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import quote
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import ResponseError as RedisResponseError
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import RedirectResponse
@@ -53,11 +55,11 @@ async def google_auth(request: Request):
     logger.info(f"🆕 Generating OAuth State: {state}")
     logger.info(f"💾 Storing Redis Key: {state_key}")
     
-    await redis.setex(state_key, 600, json.dumps(state_data))
-    
-    # Verify immediate write
-    saved_val = await redis.get(state_key)
-    logger.info(f"✅ Immediate Verify Read: {'SUCCESS' if saved_val else 'FAILED'}")
+    try:
+        await redis.setex(state_key, 600, json.dumps(state_data))
+    except RedisConnectionError as e:
+        logger.error(f"Redis unavailable during OAuth state write: {e}")
+        raise HTTPException(status_code=503, detail="Authentication service temporarily unavailable")
     
     # 3. Generate URL
     try:
@@ -90,15 +92,20 @@ async def google_callback(
     logger.info(f"🔎 Redis Key Lookup: {state_key}")
     
     try:
-        state_json = await redis.get(state_key)
-        if state_json:
-            deleted_count = await redis.delete(state_key)
-            if deleted_count == 0:
-                state_json = None # Defeat race conditions
+        # Use GETDEL (Redis 6.2+) to atomically read+consume OAuth state in one operation.
+        # Fallback keeps compatibility with older Redis versions.
+        try:
+            state_json = await redis.execute_command("GETDEL", state_key)
+        except RedisResponseError:
+            state_json = await redis.get(state_key)
+            if state_json:
+                deleted_count = await redis.delete(state_key)
+                if deleted_count == 0:
+                    state_json = None # Defeat race conditions
         logger.info(f"📄 Redis Result: {'FOUND and CLAIMED' if state_json else 'NOT FOUND or ALREADY CONSUMED'}")
     except Exception as e:
         logger.error(f"❌ Redis Error during state lookup: {e}")
-        raise HTTPException(status_code=500, detail="Redis connection failed")
+        raise HTTPException(status_code=503, detail="Authentication service temporarily unavailable")
     
     if not state_json:
         logger.warning(f"⚠️ OAuth State Missing/Expired for key. Possible double-request.")

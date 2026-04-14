@@ -7,16 +7,14 @@ Implements critical security controls:
 3. Request ID (Traceability)
 """
 
-import os
 import uuid
 import logging
+import os
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from core.redis import InstrumentedRedis
+from core.redis import get_redis
 from app.config import settings
 
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-redis_client = InstrumentedRedis.from_url(redis_url, encoding="utf-8", decode_responses=True)
 logger = logging.getLogger("security")
 
 
@@ -108,16 +106,31 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """
     RATE_LIMIT = 100
     WINDOW = 60
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.rate_limit_all_api = os.getenv("RATE_LIMIT_ALL_API", "false").strip().lower() in {"1", "true", "yes", "on"}
+        self.protected_prefixes = (
+            "/api/auth",
+            "/api/webhooks",
+            "/api/proxy",
+        )
     
     async def dispatch(self, request: Request, call_next):
         # Skip rate limiting for static/health inputs if needed
-        if request.url.path in {"/health", "/health/simple"} or request.method == "OPTIONS":
+        path = request.url.path
+        if path in {"/health", "/health/simple"} or request.method == "OPTIONS":
+            return await call_next(request)
+
+        # Cost-control mode: only protect high-risk public endpoints with Redis-backed limiting.
+        if not self.rate_limit_all_api and not any(path.startswith(prefix) for prefix in self.protected_prefixes):
             return await call_next(request)
             
         client_ip = request.client.host if request.client else "127.0.0.1"
         key = f"rate_limit:{client_ip}"
         
         try:
+            redis_client = await get_redis()
             # Set TTL only when key is first seen to avoid an extra EXPIRE on every request.
             count = await redis_client.incr(key)
             if count == 1:
