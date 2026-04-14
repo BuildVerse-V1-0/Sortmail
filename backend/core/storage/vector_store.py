@@ -6,10 +6,21 @@ Chroma vector database for Tier 2 Semantic Search.
 
 from typing import List, Optional
 import logging
+import hashlib
 from app.config import settings
 import asyncio
 
 logger = logging.getLogger(__name__)
+
+MAX_VECTOR_ID_BYTES = 120
+
+
+def _normalize_vector_id(raw_id: str) -> str:
+    """Keep vector IDs under provider byte limits using deterministic hashing."""
+    if len(raw_id.encode("utf-8")) <= MAX_VECTOR_ID_BYTES:
+        return raw_id
+    digest = hashlib.sha256(raw_id.encode("utf-8")).hexdigest()[:40]
+    return f"vid_{digest}"
 
 class VectorStore:
     """Chroma vector store wrapper for email and attachment context."""
@@ -62,12 +73,19 @@ class VectorStore:
             return
             
         try:
+            normalized_id = _normalize_vector_id(id)
+            metadata_safe = dict(metadata or {})
+            if "user_id" in metadata_safe and metadata_safe["user_id"] is not None:
+                metadata_safe["user_id"] = str(metadata_safe["user_id"])
+            if normalized_id != id:
+                metadata_safe.setdefault("vector_original_id", id)
+
             def _add():
                 self._collection.add(
-                    ids=[id],
+                    ids=[normalized_id],
                     documents=[document],
                     embeddings=[embedding],
-                    metadatas=[metadata],
+                    metadatas=[metadata_safe],
                 )
             await asyncio.to_thread(_add)
         except Exception as e:
@@ -85,12 +103,24 @@ class VectorStore:
             return
             
         try:
+            normalized_ids = []
+            normalized_metadatas = []
+            for i, raw_id in enumerate(ids):
+                normalized_id = _normalize_vector_id(raw_id)
+                metadata_safe = dict((metadatas[i] if i < len(metadatas) else {}) or {})
+                if "user_id" in metadata_safe and metadata_safe["user_id"] is not None:
+                    metadata_safe["user_id"] = str(metadata_safe["user_id"])
+                if normalized_id != raw_id:
+                    metadata_safe.setdefault("vector_original_id", raw_id)
+                normalized_ids.append(normalized_id)
+                normalized_metadatas.append(metadata_safe)
+
             def _add_batch():
                 self._collection.add(
-                    ids=ids,
+                    ids=normalized_ids,
                     documents=documents,
                     embeddings=embeddings,
-                    metadatas=metadatas,
+                    metadatas=normalized_metadatas,
                 )
             await asyncio.to_thread(_add_batch)
         except Exception as e:

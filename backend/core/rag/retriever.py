@@ -29,7 +29,7 @@ async def get_similar_context(query_text: str, user_id: str, limit: int = 5, exc
         )
 
         # Strict where filter — enforces user-level tenant isolation
-        where_filter = {"user_id": user_id}
+        where_filter = {"user_id": str(user_id)}
 
         # Call query() which mandates user_id in where
         results = await vector_store.query(

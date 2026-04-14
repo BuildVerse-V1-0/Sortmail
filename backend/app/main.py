@@ -25,6 +25,10 @@ setup_secure_logging(
 )
 logger = logging.getLogger("api")
 
+if settings.ENVIRONMENT.lower() == "production":
+    logging.getLogger("googleapiclient.discovery").setLevel(logging.WARNING)
+    logging.getLogger("googleapiclient.http").setLevel(logging.WARNING)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

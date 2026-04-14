@@ -7,6 +7,7 @@ from core.storage.database import get_db
 from models.user import User
 from api.dependencies import get_current_user
 from models.thread import Thread
+from models.attachment import Attachment
 from core.credits.credit_service import InsufficientCreditsError
 from core.rag.retriever import get_similar_context
 from core.intelligence.llama_engine import llama_chat
@@ -16,6 +17,63 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+async def _filter_context_items_to_user(
+    items: list[dict],
+    *,
+    user_id: str,
+    db: AsyncSession,
+) -> list[dict]:
+    """Defense-in-depth: only return context items whose source rows belong to user_id."""
+    if not items:
+        return []
+
+    thread_ids = {
+        str(item.get("source_id"))
+        for item in items
+        if str(item.get("source_type") or "").startswith("thread") and item.get("source_id")
+    }
+    attachment_ids = {
+        str(item.get("source_id"))
+        for item in items
+        if str(item.get("source_type") or "").startswith("attachment") and item.get("source_id")
+    }
+
+    owned_thread_ids: set[str] = set()
+    if thread_ids:
+        owned_thread_rows = await db.execute(
+            select(Thread.id).where(
+                Thread.user_id == user_id,
+                Thread.id.in_(list(thread_ids)),
+            )
+        )
+        owned_thread_ids = {str(row[0]) for row in owned_thread_rows.all()}
+
+    owned_attachment_ids: set[str] = set()
+    if attachment_ids:
+        owned_attachment_rows = await db.execute(
+            select(Attachment.id).where(
+                Attachment.user_id == user_id,
+                Attachment.id.in_(list(attachment_ids)),
+            )
+        )
+        owned_attachment_ids = {str(row[0]) for row in owned_attachment_rows.all()}
+
+    filtered: list[dict] = []
+    for item in items:
+        source_type = str(item.get("source_type") or "")
+        source_id = str(item.get("source_id") or "")
+        if not source_id:
+            continue
+
+        if source_type.startswith("thread") and source_id in owned_thread_ids:
+            filtered.append(item)
+            continue
+        if source_type.startswith("attachment") and source_id in owned_attachment_ids:
+            filtered.append(item)
+
+    return filtered
 
 
 @router.get("/context/{thread_id}")
@@ -41,6 +99,7 @@ async def get_thread_context(
         limit=5,
         exclude_source_id=thread.id
     )
+    similar_items = await _filter_context_items_to_user(similar_items, user_id=current_user.id, db=db)
     return {"context": similar_items}
 
 
@@ -64,6 +123,7 @@ async def ai_chat(
         user_id=current_user.id,
         limit=6
     )
+    similar_items = await _filter_context_items_to_user(similar_items, user_id=current_user.id, db=db)
 
     context_str = "\n\n".join([
         f"--- {item.get('source_type', 'email')} ---\n{item.get('document', '')[:1000]}"
