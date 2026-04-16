@@ -56,14 +56,16 @@ def _record_auth_attempt(has_header: bool, has_cookie: bool, logger: logging.Log
             _auth_log_counts[key] = 0
         _auth_log_last_flush = now
 
+    # Build a fully formatted message to avoid placeholder mismatch if downstream
+    # sanitizers rewrite sensitive tokens in log text.
     logger.debug(
-        "Auth attempt summary (%.1fs): total=%d header=%d cookie=%d both=%d neither=%d",
-        elapsed,
-        snapshot["total"],
-        snapshot["header"],
-        snapshot["cookie"],
-        snapshot["both"],
-        snapshot["neither"],
+        "Auth attempt summary "
+        f"({elapsed:.1f}s): "
+        f"total={snapshot['total']} "
+        f"header={snapshot['header']} "
+        f"ck={snapshot['cookie']} "
+        f"both={snapshot['both']} "
+        f"neither={snapshot['neither']}"
     )
 
 async def get_current_user(
