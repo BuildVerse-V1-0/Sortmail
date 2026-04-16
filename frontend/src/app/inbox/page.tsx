@@ -7,7 +7,6 @@ import AppShell from '@/components/layout/AppShell';
 import { api, endpoints } from '@/lib/api';
 import { useThreads } from '@/hooks/useThreads';
 import { useSmartSync } from '@/hooks/useSmartSync';
-import { useRealtimeEvents } from '@/hooks/useRealtimeEvents';
 import { useSearchParams } from 'next/navigation';
 import { ThreadListItem } from '@/types/dashboard';
 
@@ -90,7 +89,6 @@ function InboxContent() {
     const { data: threads, isLoading, error } = useThreads(intentFilter, debouncedSearch || undefined, currentOffset, currentLimit);
     
     const { syncState, triggerSync } = useSmartSync();
-    useRealtimeEvents();
 
     const isSyncing = syncState === 'syncing' || syncState === 'checking';
 

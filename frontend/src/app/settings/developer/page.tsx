@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api, endpoints } from "@/lib/api";
+import { config } from "@/lib/config";
 
 export default function DeveloperSettingsPage() {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://sortmail-production.up.railway.app";
+    const apiBase = config.apiUrl || (typeof window !== "undefined" ? window.location.origin : "");
 
     const { data: appStatus } = useQuery<any>({
         queryKey: ["app-status", "settings-dev"],

@@ -35,8 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [router]);
 
     const checkSession = useCallback(async () => {
-        try {
-            console.log("🔍 Checking Session...");
+        const checkOnce = async (): Promise<boolean> => {
             const url = getApiUrl("/api/auth/me");
             const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
             const res = await fetch(url, {
@@ -52,17 +51,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const userData = await res.json();
                 setUser(userData);
                 return true;
-            } else {
+            }
+
+            setUser(null);
+            if (res.status === 401) {
+                redirectToLogin();
+            }
+            return false;
+        };
+
+        try {
+            console.log("🔍 Checking Session...");
+            return await checkOnce();
+        } catch (error) {
+            // OAuth callback and flaky DNS can race briefly; retry once before failing.
+            try {
+                await new Promise((resolve) => setTimeout(resolve, 350));
+                return await checkOnce();
+            } catch (retryError) {
+                console.error("Session check failed", retryError);
                 setUser(null);
-                if (res.status === 401) {
-                    redirectToLogin();
-                }
                 return false;
             }
-        } catch (error) {
-            console.error("Session check failed", error);
-            setUser(null);
-            return false;
         } finally {
             setIsLoading(false);
         }

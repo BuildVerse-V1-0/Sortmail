@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useThreadIntel } from './useThreadIntel';
+import { getApiUrl } from '@/lib/config';
 
 /**
  * Provides context-aware AI interactions for the current thread.
@@ -21,7 +22,7 @@ export function useThreadContext(threadId: string) {
 
         // Simulate AI response based on thread context
         try {
-            const apiRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/ai/chat`, {
+            const apiRes = await fetch(getApiUrl('/api/ai/chat'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

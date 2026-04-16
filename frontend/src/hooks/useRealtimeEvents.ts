@@ -10,9 +10,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-
-const RAW = process.env.NEXT_PUBLIC_API_URL || 'https://sortmail-production.up.railway.app';
-const API_BASE = RAW.replace(/^http:\/\/(?!localhost)/, 'https://');
+import { getApiUrl } from '@/lib/config';
 
 type NotificationPrefs = {
     push_enabled?: boolean;
@@ -38,15 +36,23 @@ function inQuietHours(start?: string | null, end?: string | null): boolean {
     return nowMin >= startMin || nowMin < endMin;
 }
 
-export function useRealtimeEvents() {
+export function useRealtimeEvents(enabled = true) {
     const queryClient = useQueryClient();
     const esRef = useRef<EventSource | null>(null);
 
     useEffect(() => {
+        if (!enabled) {
+            if (esRef.current) {
+                esRef.current.close();
+                esRef.current = null;
+            }
+            return;
+        }
+
         // Only one connection per component life
         if (esRef.current) return;
 
-        const url = `${API_BASE}/api/events/stream`;
+        const url = getApiUrl('/api/events/stream');
         const es = new EventSource(url, { withCredentials: true });
         esRef.current = es;
 
@@ -123,5 +129,5 @@ export function useRealtimeEvents() {
             es.close();
             esRef.current = null;
         };
-    }, [queryClient]);
+    }, [enabled, queryClient]);
 }

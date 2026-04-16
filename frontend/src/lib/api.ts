@@ -1,7 +1,7 @@
 import axios from 'axios';
+import { config } from '@/lib/config';
 
-const RAW_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sortmail-production.up.railway.app';
-const API_URL = RAW_URL.replace(/^http:\/\/(?!localhost)/, 'https://');
+const API_URL = config.apiUrl || undefined;
 
 export const api = axios.create({
     baseURL: API_URL,

@@ -6,6 +6,7 @@ import { Loader2, CheckCircle2, XCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import gsap from "gsap";
+import { getApiUrl } from "@/lib/config";
 
 function CallbackContent() {
     const router = useRouter();
@@ -24,6 +25,26 @@ function CallbackContent() {
         const code = searchParams.get("code");
         const error = searchParams.get("error");
 
+        const verifySessionWithRetry = async (tokenForHeader?: string | null) => {
+            const maxAttempts = 8;
+            for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+                try {
+                    const res = await fetch(getApiUrl("/api/auth/me"), {
+                        credentials: "include",
+                        headers: {
+                            ...(tokenForHeader ? { Authorization: `Bearer ${tokenForHeader}` } : {}),
+                        },
+                    });
+                    if (res.ok) return true;
+                } catch {
+                    // keep retrying for transient DNS/network callback races
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+            }
+            return false;
+        };
+
         if (error) {
             setStatus("error");
             setMessage("Authentication failed. Please try again.");
@@ -34,28 +55,38 @@ function CallbackContent() {
             localStorage.setItem("access_token", token);
             // Clear fragment/query token from visible URL.
             window.history.replaceState({}, "", "/callback");
-            setStatus("success");
-            setMessage("Session established. Redirecting to your dashboard...");
-            setTimeout(() => {
-                router.push("/dashboard");
-            }, 1200);
+
+            const continueWithToken = async () => {
+                const ok = await verifySessionWithRetry(token);
+                if (!ok) {
+                    setStatus("error");
+                    setMessage("Session could not be restored. Please sign in again.");
+                    return;
+                }
+
+                setStatus("success");
+                setMessage("Session established. Redirecting to your dashboard...");
+                setTimeout(() => {
+                    router.push("/dashboard");
+                }, 800);
+            };
+
+            continueWithToken();
             return;
         }
 
         if (code) {
             // Cookie-based fallback path: verify session then continue.
             const verifySession = async () => {
-                try {
-                    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://sortmail-production.up.railway.app";
-                    const res = await fetch(`${apiBase}/api/auth/me`, { credentials: "include" });
-                    if (!res.ok) throw new Error("session check failed");
+                const ok = await verifySessionWithRetry(null);
+                if (ok) {
                     setStatus("success");
                     setMessage("Account connected successfully!");
                     gsap.to(".status-icon", { scale: 1.2, duration: 0.4, yoyo: true, repeat: 1 });
                     setTimeout(() => {
                         router.push("/dashboard");
-                    }, 1200);
-                } catch {
+                    }, 800);
+                } else {
                     setStatus("error");
                     setMessage("Session could not be restored. Please sign in again.");
                 }
