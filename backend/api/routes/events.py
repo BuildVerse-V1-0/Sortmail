@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse
 
 from api.dependencies import get_current_user
 from models.user import User
-from core.redis import get_redis
+from core.redis import get_redis, get_redis_pubsub
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ async def event_stream(
 
     async def generator():
         try:
-            r = await get_redis()
+            r = await get_redis_pubsub()
         except Exception:
             r = None
 
@@ -88,7 +88,20 @@ async def event_stream(
             except asyncio.CancelledError:
                 pass
             finally:
-                await pubsub.unsubscribe(channel)
+                try:
+                    await pubsub.unsubscribe(channel)
+                except Exception:
+                    pass
+
+                try:
+                    close_method = getattr(pubsub, "aclose", None)
+                    if callable(close_method):
+                        await close_method()
+                    else:
+                        await pubsub.close()
+                except Exception:
+                    pass
+
                 logger.info(f"SSE stream closed for user {user_id}")
 
         else:

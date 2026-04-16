@@ -21,7 +21,8 @@ from core.credits.token_pricing import milli_to_credits
 
 from api.dependencies import get_current_user
 from core.app_metrics import get_metrics_snapshot
-from core.redis_metrics import get_redis_metrics_snapshot
+from core.redis_metrics import get_redis_metrics_snapshot, get_redis_metrics_detail
+from core.redis import get_redis, get_redis_pubsub
 from app.config import settings
 from core.intelligence.processing_queue import get_queue
 from core.storage.database import get_db
@@ -88,6 +89,75 @@ async def app_metrics(admin: User = Depends(require_superuser)):
 async def redis_metrics(admin: User = Depends(require_superuser)):
     _ = admin
     return get_redis_metrics_snapshot()
+
+
+def _serialize_pool(pool) -> dict:
+    max_connections = getattr(pool, "max_connections", None)
+
+    in_use = getattr(pool, "_in_use_connections", None)
+    available = getattr(pool, "_available_connections", None)
+
+    try:
+        in_use_count = len(in_use) if in_use is not None else None
+    except Exception:
+        in_use_count = None
+
+    try:
+        available_count = len(available) if available is not None else None
+    except Exception:
+        available_count = None
+
+    utilization_pct = None
+    if isinstance(max_connections, int) and max_connections > 0 and isinstance(in_use_count, int):
+        utilization_pct = round((in_use_count / max_connections) * 100, 2)
+
+    return {
+        "max_connections": max_connections,
+        "in_use_connections": in_use_count,
+        "available_connections": available_count,
+        "utilization_pct": utilization_pct,
+    }
+
+
+async def _safe_redis_info(client, section: str) -> dict | None:
+    try:
+        return await client.info(section)
+    except Exception:
+        return None
+
+
+@router.get("/redis/detail")
+async def redis_metrics_detail(admin: User = Depends(require_superuser)):
+    _ = admin
+
+    in_process = get_redis_metrics_detail()
+
+    diagnostics = {
+        "in_process": in_process,
+        "clients": None,
+        "stats": None,
+        "memory": None,
+        "command_pool": None,
+        "pubsub_pool": None,
+        "errors": [],
+    }
+
+    try:
+        redis_cmd = await get_redis()
+        diagnostics["command_pool"] = _serialize_pool(getattr(redis_cmd, "connection_pool", None))
+        diagnostics["clients"] = await _safe_redis_info(redis_cmd, "clients")
+        diagnostics["stats"] = await _safe_redis_info(redis_cmd, "stats")
+        diagnostics["memory"] = await _safe_redis_info(redis_cmd, "memory")
+    except Exception as exc:
+        diagnostics["errors"].append(f"command_client_error: {str(exc)}")
+
+    try:
+        redis_pubsub = await get_redis_pubsub()
+        diagnostics["pubsub_pool"] = _serialize_pool(getattr(redis_pubsub, "connection_pool", None))
+    except Exception as exc:
+        diagnostics["errors"].append(f"pubsub_client_error: {str(exc)}")
+
+    return diagnostics
 
 
 @router.get("/queue")

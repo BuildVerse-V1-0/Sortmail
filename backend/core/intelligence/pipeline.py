@@ -840,16 +840,31 @@ async def _run_two_pass_intelligence(
     if not run_pass2:
         return pass1_intel, pass_meta
 
-    pass2 = await run_intelligence_with_usage(
-        thread_id=thread_id,
-        user_id=user_id,
-        subject=subject,
-        participants=participants,
-        messages=messages,
-        model_id=pass2_model,
-        first_pass_intel=pass1_intel,
-        operation="thread_intel_pass2",
-    )
+    try:
+        pass2 = await run_intelligence_with_usage(
+            thread_id=thread_id,
+            user_id=user_id,
+            subject=subject,
+            participants=participants,
+            messages=messages,
+            model_id=pass2_model,
+            first_pass_intel=pass1_intel,
+            operation="thread_intel_pass2",
+        )
+    except InsufficientCreditsError as exc:
+        pass_meta.update(
+            {
+                "pass2_executed": False,
+                "pass2_input_tokens": 0,
+                "pass2_output_tokens": 0,
+                "pass2_latency_ms": 0,
+                "pass2_token_source": "insufficient_credits",
+                "pass2_skip_reason": str(exc),
+            }
+        )
+        logger.info("Skipping pass2 for thread=%s due to insufficient credits", thread_id)
+        return pass1_intel, pass_meta
+
     pass2_intel = dict(pass2.get("intel") or {})
 
     pass_meta.update(

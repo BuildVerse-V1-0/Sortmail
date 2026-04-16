@@ -80,7 +80,7 @@ async def gmail_webhook(
         try:
             redis = await get_redis()
             dedupe_key = f"sync:webhook:pending:{account.user_id}"
-            acquired = await redis.set(dedupe_key, "1", nx=True, ex=60)
+            acquired = await redis.set(dedupe_key, "1", nx=True, ex=180)
             if not acquired:
                 logger.info(f"Debounced webhook sync for user {account.user_id}")
                 return {"status": "deduped", "message": "Sync already scheduled"}

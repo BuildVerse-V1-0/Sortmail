@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
         logger.warning("Proceeding without vector search")
     
     # Start Background AI Worker when explicitly enabled for this process.
-    worker_enabled = os.getenv("AI_WORKER_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+    worker_enabled = os.getenv("AI_WORKER_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
     if worker_enabled and hasattr(settings, "REDIS_URL") and settings.REDIS_URL:
         from core.intelligence.processing_queue import intelligence_worker
         import asyncio

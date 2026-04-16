@@ -10,6 +10,7 @@ Implements critical security controls:
 import uuid
 import logging
 import os
+import time
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from core.redis import get_redis
@@ -115,6 +116,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "/api/webhooks",
             "/api/proxy",
         )
+        self.redis_error_cooldown_seconds = float(os.getenv("RATE_LIMIT_REDIS_COOLDOWN_SECONDS", "5"))
+        self._redis_unavailable_until = 0.0
+        self._last_redis_warning_at = 0.0
+        self.redis_warning_interval_seconds = float(os.getenv("RATE_LIMIT_REDIS_WARNING_INTERVAL_SECONDS", "15"))
     
     async def dispatch(self, request: Request, call_next):
         # Skip rate limiting for static/health inputs if needed
@@ -128,6 +133,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             
         client_ip = request.client.host if request.client else "127.0.0.1"
         key = f"rate_limit:{client_ip}"
+
+        now = time.monotonic()
+        if now < self._redis_unavailable_until:
+            return await call_next(request)
         
         try:
             redis_client = await get_redis()
@@ -145,7 +154,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 
         except Exception as e:
             # Fail Open for Redis connection issues
-            logger.warning(f"Rate Limit Redis Error: {e}")
+            self._redis_unavailable_until = time.monotonic() + self.redis_error_cooldown_seconds
+            if time.monotonic() - self._last_redis_warning_at >= self.redis_warning_interval_seconds:
+                logger.warning(f"Rate Limit Redis Error: {e}")
+                self._last_redis_warning_at = time.monotonic()
             pass
             
         # Call the actual route OUTSIDE the try-except so exceptions bubble up!
