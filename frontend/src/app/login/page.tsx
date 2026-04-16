@@ -13,7 +13,7 @@ import { getApiUrl } from "@/lib/config";
 export default function LoginPage() {
     const containerRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
-    const { user, isLoading, checkSession } = useAuth();
+    const { user, isLoading } = useAuth();
     const [loading, setLoading] = useState<"google" | "outlook" | "magic" | null>(null);
     const [email, setEmail] = useState("");
 
@@ -47,12 +47,6 @@ export default function LoginPage() {
             router.replace("/dashboard");
         }
     }, [isLoading, user, router]);
-
-    useEffect(() => {
-        if (!user && !isLoading) {
-            checkSession().catch(() => undefined);
-        }
-    }, [checkSession, isLoading, user]);
 
     const handleLogin = (provider: "GMAIL" | "OUTLOOK") => {
         setLoading(provider === "GMAIL" ? "google" : "outlook");

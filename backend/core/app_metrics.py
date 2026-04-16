@@ -14,6 +14,8 @@ from typing import Any
 from uuid import uuid4
 
 _WINDOW_SECONDS = 60.0
+_RETENTION_SECONDS = 300.0
+_STARTED_AT = datetime.now(timezone.utc)
 _recent_events: deque[tuple[float, str]] = deque()
 _lifetime_events: Counter[str] = Counter()
 _recent_ai_calls: deque[tuple[float, dict[str, Any]]] = deque()
@@ -91,11 +93,12 @@ def get_metrics_snapshot() -> dict[str, Any]:
     now = monotonic()
     with _lock:
         _trim_locked(now)
-        recent = [event for _, event in _recent_events]
+        cutoff = now - _WINDOW_SECONDS
+        recent = [event for ts, event in _recent_events if ts >= cutoff]
         per_minute = Counter(recent)
         lifetime = dict(_lifetime_events)
         _trim_ai_locked(now)
-        ai_recent = [record for _, record in _recent_ai_calls]
+        ai_recent = [record for ts, record in _recent_ai_calls if ts >= cutoff]
         ai_per_minute = Counter(record["operation"] for record in ai_recent)
         token_source_per_minute = Counter(record.get("token_source", "unknown") for record in ai_recent)
         ai_usage_recent = {
@@ -114,6 +117,9 @@ def get_metrics_snapshot() -> dict[str, Any]:
             if key.startswith("token_source:")
         }
 
+    now_utc = datetime.now(timezone.utc)
+    uptime_seconds = max((now_utc - _STARTED_AT).total_seconds(), 0.0)
+
     return {
         "window_seconds": int(_WINDOW_SECONDS),
         "events_last_minute": dict(per_minute),
@@ -125,17 +131,20 @@ def get_metrics_snapshot() -> dict[str, Any]:
             "lifetime": ai_usage_lifetime,
             "token_source_counts_lifetime": token_source_lifetime,
         },
-        "sampled_at": datetime.now(timezone.utc).isoformat(),
+        "metrics_scope": "process",
+        "process_started_at": _STARTED_AT.isoformat(),
+        "process_uptime_seconds": round(uptime_seconds, 3),
+        "sampled_at": now_utc.isoformat(),
     }
 
 
 def _trim_locked(now: float) -> None:
-    cutoff = now - _WINDOW_SECONDS
+    cutoff = now - _RETENTION_SECONDS
     while _recent_events and _recent_events[0][0] < cutoff:
         _recent_events.popleft()
 
 
 def _trim_ai_locked(now: float) -> None:
-    cutoff = now - _WINDOW_SECONDS
+    cutoff = now - _RETENTION_SECONDS
     while _recent_ai_calls and _recent_ai_calls[0][0] < cutoff:
         _recent_ai_calls.popleft()

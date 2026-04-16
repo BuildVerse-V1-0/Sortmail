@@ -13,6 +13,8 @@ from time import monotonic
 from typing import Any
 
 _WINDOW_SECONDS = 60.0
+_RETENTION_SECONDS = 300.0
+_STARTED_AT = datetime.now(timezone.utc)
 _timestamps: deque[tuple[float, str]] = deque()
 _totals: Counter[str] = Counter()
 _lock = Lock()
@@ -34,10 +36,14 @@ def get_redis_metrics_snapshot() -> dict[str, Any]:
     now = monotonic()
     with _lock:
         _trim_locked(now)
-        recent_commands = [cmd for _, cmd in _timestamps]
+        cutoff = now - _WINDOW_SECONDS
+        recent_commands = [cmd for ts, cmd in _timestamps if ts >= cutoff]
         calls_last_minute = len(recent_commands)
         command_breakdown_last_minute = Counter(recent_commands)
         lifetime_breakdown = dict(_totals)
+
+    now_utc = datetime.now(timezone.utc)
+    uptime_seconds = max((now_utc - _STARTED_AT).total_seconds(), 0.0)
 
     return {
         "window_seconds": int(_WINDOW_SECONDS),
@@ -45,7 +51,10 @@ def get_redis_metrics_snapshot() -> dict[str, Any]:
         "commands_last_minute": dict(command_breakdown_last_minute),
         "total_calls_lifetime": sum(lifetime_breakdown.values()),
         "commands_lifetime": lifetime_breakdown,
-        "sampled_at": datetime.now(timezone.utc).isoformat(),
+        "metrics_scope": "process",
+        "process_started_at": _STARTED_AT.isoformat(),
+        "process_uptime_seconds": round(uptime_seconds, 3),
+        "sampled_at": now_utc.isoformat(),
     }
 
 
@@ -129,6 +138,6 @@ def get_redis_metrics_detail() -> dict[str, Any]:
 
 
 def _trim_locked(now: float) -> None:
-    cutoff = now - _WINDOW_SECONDS
+    cutoff = now - _RETENTION_SECONDS
     while _timestamps and _timestamps[0][0] < cutoff:
         _timestamps.popleft()

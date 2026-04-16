@@ -5,6 +5,8 @@ Common dependencies like authentication and database sessions.
 """
 
 import logging
+from threading import Lock
+from time import monotonic
 from fastapi import Depends, HTTPException, status, Cookie
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +18,53 @@ from core.auth import jwt
 from models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login", auto_error=False) 
+
+_AUTH_ATTEMPT_LOG_INTERVAL_SECONDS = 15.0
+_auth_log_lock = Lock()
+_auth_log_last_flush = monotonic()
+_auth_log_counts = {
+    "total": 0,
+    "header": 0,
+    "cookie": 0,
+    "both": 0,
+    "neither": 0,
+}
+
+
+def _record_auth_attempt(has_header: bool, has_cookie: bool, logger: logging.Logger) -> None:
+    """Log auth attempt volume as a periodic summary instead of every request."""
+    global _auth_log_last_flush
+
+    now = monotonic()
+    with _auth_log_lock:
+        _auth_log_counts["total"] += 1
+        if has_header:
+            _auth_log_counts["header"] += 1
+        if has_cookie:
+            _auth_log_counts["cookie"] += 1
+        if has_header and has_cookie:
+            _auth_log_counts["both"] += 1
+        if not has_header and not has_cookie:
+            _auth_log_counts["neither"] += 1
+
+        elapsed = now - _auth_log_last_flush
+        if elapsed < _AUTH_ATTEMPT_LOG_INTERVAL_SECONDS:
+            return
+
+        snapshot = dict(_auth_log_counts)
+        for key in _auth_log_counts:
+            _auth_log_counts[key] = 0
+        _auth_log_last_flush = now
+
+    logger.debug(
+        "Auth attempt summary (%.1fs): total=%d header=%d cookie=%d both=%d neither=%d",
+        elapsed,
+        snapshot["total"],
+        snapshot["header"],
+        snapshot["cookie"],
+        snapshot["both"],
+        snapshot["neither"],
+    )
 
 async def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
@@ -35,7 +84,9 @@ async def get_current_user(
     # 1. Try Bearer Header (Best for API Clients)
     # 2. Try Cookie (Best for Browser/Frontend)
     logger = logging.getLogger(__name__)
-    logger.debug(f"Auth attempt: Header={token is not None}, Cookie={access_token is not None}")
+    has_header = token is not None
+    has_cookie = access_token is not None
+    _record_auth_attempt(has_header, has_cookie, logger)
     
     token_to_validate = token or access_token
     
