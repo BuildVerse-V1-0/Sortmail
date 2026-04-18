@@ -54,12 +54,31 @@ async def event_stream(
         except Exception:
             r = None
 
+        pubsub = None
         if r:
-            # Subscribe to Redis pub/sub channel
-            pubsub = r.pubsub()
-            await pubsub.subscribe(channel)
-            logger.info(f"SSE stream opened for user {user_id}")
+            try:
+                # Subscribe to Redis pub/sub channel
+                pubsub = r.pubsub()
+                await pubsub.subscribe(channel)
+                logger.info(f"SSE stream opened for user {user_id}")
+            except Exception as exc:
+                logger.warning(
+                    "SSE: Redis subscribe failed for user %s; switching to heartbeat-only mode (%s)",
+                    user_id,
+                    exc,
+                )
+                try:
+                    if pubsub is not None:
+                        close_method = getattr(pubsub, "aclose", None)
+                        if callable(close_method):
+                            await close_method()
+                        else:
+                            await pubsub.close()
+                except Exception:
+                    pass
+                pubsub = None
 
+        if pubsub:
             try:
                 while True:
                     # Check if client disconnected
@@ -67,10 +86,18 @@ async def event_stream(
                         break
 
                     # Non-blocking read from Redis (100ms timeout)
-                    message = await pubsub.get_message(
-                        ignore_subscribe_messages=True,
-                        timeout=1.0,
-                    )
+                    try:
+                        message = await pubsub.get_message(
+                            ignore_subscribe_messages=True,
+                            timeout=1.0,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "SSE: Redis read failed for user %s; switching to heartbeat-only mode (%s)",
+                            user_id,
+                            exc,
+                        )
+                        break
 
                     if message and message["type"] == "message":
                         data = message.get("data", "{}")
@@ -104,14 +131,16 @@ async def event_stream(
 
                 logger.info(f"SSE stream closed for user {user_id}")
 
-        else:
-            # No Redis — just send heartbeats so the connection stays open
-            logger.warning("SSE: Redis not available, heartbeat-only mode")
-            while True:
-                if await request.is_disconnected():
-                    break
-                yield f"event: heartbeat\ndata: {{}}\n\n"
-                await asyncio.sleep(HEARTBEAT_INTERVAL)
+        # No Redis pub/sub available — keep the stream alive with heartbeats.
+        if await request.is_disconnected():
+            return
+
+        logger.warning("SSE: Redis not available, heartbeat-only mode")
+        while True:
+            if await request.is_disconnected():
+                break
+            yield f"event: heartbeat\ndata: {{}}\n\n"
+            await asyncio.sleep(HEARTBEAT_INTERVAL)
 
     return StreamingResponse(
         generator(),

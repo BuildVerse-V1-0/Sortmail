@@ -391,9 +391,9 @@ class IngestionService:
             if getattr(settings, "REDIS_URL", None):
                 from core.intelligence.processing_queue import get_queue
                 queue = get_queue(settings.REDIS_URL)
-                loop.create_task(queue.enqueue(thread.id, priority=50))
+                loop.create_task(_enqueue_intel_safe(queue, thread.id, priority=50))
                 for att_id in attachments_to_index:
-                    loop.create_task(queue.enqueue(f"att:{att_id}", priority=80))
+                    loop.create_task(_enqueue_intel_safe(queue, f"att:{att_id}", priority=80))
             else:
                 loop.create_task(
                     _run_intel_safe(thread.id, user_id, self.db)
@@ -427,6 +427,15 @@ async def _run_followup_closure_safe(thread_id: str, user_id: str):
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Background follow-up closure failed for {thread_id}: {e}")
+
+
+async def _enqueue_intel_safe(queue, item_id: str, priority: int):
+    """Enqueue safely to avoid unobserved task exceptions on transient Redis failures."""
+    try:
+        await queue.enqueue(item_id, priority=priority)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Queue enqueue failed for {item_id}: {e}")
 
 async def _run_att_intel_safe(attachment_id: str, db):
     """Run attachment intelligence with its own DB session to avoid conflicts."""
